@@ -1,21 +1,26 @@
-#include <SFML/Window.hpp>
-#include <iostream>
+#include "pch.h"
+#include "scene.h"
 
-using namespace std;
+static void usage(string av0) {
+    cerr << "Usage: %s [-c <config filename>]" << endl;
+}
 
-int main() {
+int main(int argc, char* argv[]) {
     cout << "Program starts.." << endl;
 
-    sf::Window window(sf::VideoMode(800, 600), "gpu-particles");
-
-    while (window.isOpen()) {
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
-                window.close();
-            }
+    string config = "default.json";
+    for (int i = 0; i < argc; i++) {
+        if (string(argv[i]) == "-c") {
+            config = argv[i + 1];
+        } else if (string(argv[i]) == "-h") {
+            usage(argv[0]);
+            return 0;
         }
+        i++;
     }
+
+    SceneManager sceneManager(config);
+    sceneManager.run();
 
     cout << "..exiting program" << endl;
     return 0;
