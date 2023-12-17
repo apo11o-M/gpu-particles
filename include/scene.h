@@ -11,7 +11,9 @@ class Scene;
 class SceneManager {
     private:
         sf::RenderWindow window;
-        Scene *scene;
+        std::unique_ptr<Scene> scene;
+
+        sf::Clock clock;
 
     public:
         /**
@@ -32,15 +34,21 @@ class SceneManager {
 
 class Scene {
     private:
-        Particles *particles;
+        std::unique_ptr<Particles> particles;
         unsigned int maxParticleCount;
         int gravity;
+
+        // the border of the scene, should be <= to the windows size
+        // All particles should be bounded within this border 
+        unsigned int borderLeft, borderRight, borderTop, borderBottom;
 
     public:
         /**
          * @brief Construct a new Scene object
          */
-        Scene();
+        Scene(unsigned int maxParticleCount, unsigned int borderLeft, 
+            unsigned int borderRight, unsigned int borderTop, 
+            unsigned int borderBottom);
 
         /**
          * @brief Destroy the Scene object
