@@ -10,7 +10,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
     window.setVerticalSyncEnabled(true);
 
     // TODO: parse the config file and create the scene
-    scene = std::make_unique<Scene>(1, 0, 800, 0, 600);
+    scene = std::make_unique<Scene>(2, 0, 800, 0, 600);
 }
 
 SceneManager::~SceneManager() { }
@@ -35,11 +35,9 @@ void SceneManager::run() {
             t += DELTA_TIME;
         }
 
-        // TODO: need to work on interpolating the particles position since 
-        // right now it looks like it's stuttering
-
-        // render onto the screen every frame
-        scene->render(window);
+        // render onto the screen every frame. Here we also interpolates the 
+        // particle position
+        scene->render(window, accumulator);
     }
 }
 
@@ -50,10 +48,10 @@ Scene::Scene(unsigned int maxParticleCount,
     this->maxParticleCount = maxParticleCount;
     gravity = 0;
 
-    this->borderLeft = borderLeft;
-    this->borderRight = borderRight;
-    this->borderTop = borderTop;
-    this->borderBottom = borderBottom;
+    border.left = borderLeft;
+    border.right = borderRight;
+    border.top = borderTop;
+    border.bottom = borderBottom;
 }
 
 Scene::~Scene() { }
@@ -72,9 +70,9 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                 break;
             case (sf::Event::MouseButtonPressed):
                 if (event.mouseButton.button == sf::Mouse::Left) {
-                    particles->makeActive(1);
+                    particles->makeActive(1, 1);
                 } else if (event.mouseButton.button == sf::Mouse::Right) {
-                    
+                    particles->makeActive(1, -1);
                 }
                 break;
             default:
@@ -83,17 +81,21 @@ void Scene::pollEvent(sf::RenderWindow& window) {
     }
 }
 
-void Scene::update(sf::RenderWindow& window, double dt) {
+void Scene::update(sf::RenderWindow& window, double deltaTime) {
     // 1. update the position, velocity, and accel of the individual particles
-    particles->update(dt);
+    particles->update(deltaTime);
 
     // 2. perform collision check
+    particles->collisionDetection();
+
+    // 3. perform collision response
+    particles->collisionResponse();
 }
 
-void Scene::render(sf::RenderWindow& window) {
+void Scene::render(sf::RenderWindow& window, float deltaTime) {
     window.clear(sf::Color::Black);
 
-    particles->render(window);
+    particles->render(window, deltaTime);
 
     window.display();
 }

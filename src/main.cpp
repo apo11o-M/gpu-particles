@@ -9,14 +9,20 @@ int main(int argc, char* argv[]) {
     cout << "Program starts.." << endl;
 
     string config = "default.json";
-    for (int i = 0; i < argc; i++) {
-        if (string(argv[i]) == "-c") {
-            config = argv[i + 1];
-        } else if (string(argv[i]) == "-h") {
-            usage(argv[0]);
-            return 0;
+    try {
+        for (int i = 0; i < argc; i++) {
+            if (string(argv[i]) == "-c") {
+                config = argv[i + 1];
+            } else if (string(argv[i]) == "-h") {
+                usage(argv[0]);
+                return 0;
+            }
+            i++;
         }
-        i++;
+    } catch (const std::exception& e) {
+        cerr << "Error: " << e.what() << endl;
+        usage(argv[0]);
+        return 1;
     }
 
     SceneManager sceneManager(config);

@@ -40,7 +40,7 @@ class Particles {
          * 
          * @param count How many particles to be active
          */
-        void makeActive(unsigned int count);
+        void makeActive(unsigned int count, float direction);
 
         /**
          * @brief Make the specified particles inactive
@@ -51,7 +51,11 @@ class Particles {
 
         void update(double deltaTime);
 
-        void render(sf::RenderWindow& window);
+        void collisionDetection();
+
+        void collisionResponse();
+
+        void render(sf::RenderWindow& window, float deltaTime);
 };
 
 #endif // PARTICLE_H

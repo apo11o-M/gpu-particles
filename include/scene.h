@@ -12,7 +12,6 @@ class SceneManager {
     private:
         sf::RenderWindow window;
         std::unique_ptr<Scene> scene;
-
         sf::Clock clock;
 
     public:
@@ -32,15 +31,19 @@ class SceneManager {
         void run();
 };
 
+// the border of the scene, should be <= to the windows size
+// All particles should be bounded within this border 
+struct Border {
+    unsigned int left, right, top, bottom;
+};
+
 class Scene {
     private:
         std::unique_ptr<Particles> particles;
         unsigned int maxParticleCount;
         int gravity;
 
-        // the border of the scene, should be <= to the windows size
-        // All particles should be bounded within this border 
-        unsigned int borderLeft, borderRight, borderTop, borderBottom;
+        struct Border border;
 
     public:
         /**
@@ -66,17 +69,18 @@ class Scene {
          * @brief Proceed by one tick of the physics engine
          * 
          * @param window The window to update
-         * @param dt The time since the last tick
+         * @param deltaTime The time since the last tick
          */
-        void update(sf::RenderWindow& window, double dt);
+        void update(sf::RenderWindow& window, double deltaTime);
 
         /**
          * @brief Proceed by one frame of the renderer, should be separate from 
          * the physics engine
          * 
          * @param window The window to render to
+         * @param dt The time since the last frame
          */
-        void render(sf::RenderWindow& window);
+        void render(sf::RenderWindow& window, float deltaTime);
 };
 
 #endif // SCENE_H 
