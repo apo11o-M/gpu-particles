@@ -10,7 +10,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
     window.setVerticalSyncEnabled(true);
 
     // TODO: parse the config file and create the scene
-    scene = std::make_unique<Scene>(2, 0, 800, 0, 600);
+    scene = std::make_unique<Scene>(30, 0, 800, 0, 600);
 }
 
 SceneManager::~SceneManager() { }
@@ -83,10 +83,9 @@ void Scene::pollEvent(sf::RenderWindow& window) {
 
 void Scene::update(sf::RenderWindow& window, float deltaTime) {
     // 1. perform collision check
-    particles->collisionDetection();
-
     // 2. perform collision response
-    particles->collisionResponse();
+    particles->collisionResolution();
+
 
     // 3. update the position, velocity, and accel of the individual particles
     particles->update(deltaTime);

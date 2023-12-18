@@ -11,10 +11,10 @@ Particles::Particles(unsigned int maxParticles) :
     currIndex = 0;
     restitution = 0.9f;
 
-    r[0] = 255;
-    r[1] = 0;
-    b[0] = 255;
-    b[1] = 0;
+    // r[0] = 255;
+    // r[1] = 0;
+    // b[0] = 255;
+    // b[1] = 0;
 }
 
 Particles::~Particles() { }
@@ -22,9 +22,10 @@ Particles::~Particles() { }
 void Particles::makeActive(unsigned int count, float direction) {
     while (currIndex < maxParticleCount && count > 0) {
         x[currIndex] = 100 + (direction < 0 ? 0.0f : 300.0f);
-        y[currIndex] = 200;
+        y[currIndex] = 200 + (direction < 0 ? 5.0f : 0.0f);
+        // y[currIndex] = 200;
         vy[currIndex] = 0;
-        vx[currIndex] = -100 * (float)direction;
+        vx[currIndex] = -500 * (float)direction;
         isActive[currIndex] = true;
         currIndex++;
         count--;
@@ -71,30 +72,28 @@ Vec2<float> Particles::calcImpulse(size_t i, size_t j) {
     return Vec2<float>(impulseScalar * dx, impulseScalar * dy);
 }
 
-void Particles::collisionDetection() {
+void Particles::collisionResolution() {
     // we can use a quadtree to partition the space into smaller chunks, and 
     // only check the particles within these chunks to improve performance.
     // For now we will be using a naive approach, which is to check every 
     // possible pair of collisions
 
-    for (size_t i = 0; i < maxParticleCount - 1; i++) {
+    for (size_t i = 0; i < maxParticleCount; i++) {
         if (!isActive[i]) continue;
 
         // check for collision with the border
-        if (x[i] - radius[i] < 0) {
-            cout << "outside left wall" << endl;
-        } else if (x[i] + radius[i] > 800) {
-            cout << "outside right wall" << endl;
+        if (x[i] - radius[i] < 0 || x[i] + radius[i] > 800) {
+            // cout << "outside left/right wall" << endl;
+            vx[i] *= -1;
         }
-        if (y[i] - radius[i] < 0) {
-            cout << "outside top wall" << endl;
-        } else if (y[i] + radius[i] > 600) {
-            cout << "outside bottom wall" << endl;
+        if (y[i] - radius[i] < 0 || y[i] + radius[i] > 600) {
+            // cout << "outside top/bottom wall" << endl;
+            vy[i] *= -1;
         }
 
         // check for collision with all other particles
         for (size_t j = i + 1; j < maxParticleCount; j++) {
-            if (!isActive[j]) continue;
+            if (!isActive[j] || i == j) continue;
             // calculate the distance between the center of the two particles
             float dx = x[i] - x[j];
             float dy = y[i] - y[j];
@@ -102,24 +101,13 @@ void Particles::collisionDetection() {
             float totalRadius = radius[i] + radius[j];
 
             if (dist < totalRadius * totalRadius) {
-                cout << "collision detected" << endl;
                 Vec2<float> impulseVector = calcImpulse(i, j);
                 impulse[i] += impulseVector;
                 impulse[j] -= impulseVector;
             }
         }
     }
-}
 
-void Particles::collisionResponse() {
-    // Several cases:
-    // case 1: particle collides with the border
-    // case 2: particle collides with another particle
-    // case 3: particle collides with multiple particles
-
-    // an approach here would be using a force based model, where we calculate 
-    // the net force vector on a particle, and then use that to move our 
-    // particle in another direction.
     for (size_t i = 0; i < maxParticleCount; i++) {
         if (!isActive[i]) continue;
         vx[i] += impulse[i].x * mass[i];
@@ -127,7 +115,6 @@ void Particles::collisionResponse() {
         // cout << impulse[i] << " " << vx[i] << " " << vy[i] << endl;
         impulse[i] = Vec2<float>::zero;
     }
-    // cout << endl;
 }
 
 void Particles::render(sf::RenderWindow& window, float deltaTime) {

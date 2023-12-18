@@ -60,7 +60,7 @@ class Particles {
          * (and/or the walls). If so, calculate the net impulse at each particle
          * for later update
          */
-        void collisionDetection();
+        void collisionResolution();
 
         /**
          * @brief Calculate the impulse of the collision between particle i
@@ -72,13 +72,6 @@ class Particles {
          * @return Vec2<float> The result impulse vector
          */
         Vec2<float> calcImpulse(size_t i, size_t j);
-
-        /**
-         * @brief Apply the net impulse of each particle to their respective 
-         * velocity for later update
-         * 
-         */
-        void collisionResponse();
 
         void render(sf::RenderWindow& window, float deltaTime);
 };
