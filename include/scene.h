@@ -4,7 +4,7 @@
 #include "pch.h"
 #include "particle.h"
 
-#define DELTA_TIME 0.05
+#define DELTA_TIME 0.01f
 
 class Scene;
 
@@ -71,7 +71,7 @@ class Scene {
          * @param window The window to update
          * @param deltaTime The time since the last tick
          */
-        void update(sf::RenderWindow& window, double deltaTime);
+        void update(sf::RenderWindow& window, float deltaTime);
 
         /**
          * @brief Proceed by one frame of the renderer, should be separate from 

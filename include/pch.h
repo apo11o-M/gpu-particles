@@ -18,4 +18,6 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
+#include "vec2.h"
+
 #endif //PCH_H

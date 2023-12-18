@@ -1,20 +1,27 @@
 #include "particle.h"
 
-Particles::Particles(unsigned int maxParticleCount) : 
-    r(maxParticleCount, 66), g(maxParticleCount, 205), b(maxParticleCount, 227),
-    x(maxParticleCount, 0), y(maxParticleCount, 0), vx(maxParticleCount, 0),
-    vy(maxParticleCount, 0), ax(maxParticleCount, 0), ay(maxParticleCount, 0),
-    mass(maxParticleCount, 30), radius(maxParticleCount, 7), 
-    isActive(maxParticleCount, false), shapes(maxParticleCount) {
-    this->maxParticleCount = maxParticleCount;
+Particles::Particles(unsigned int maxParticles) : 
+    r(maxParticles, 66), g(maxParticles, 205), b(maxParticles, 227),
+    x(maxParticles, 0), y(maxParticles, 0), vx(maxParticles, 0),
+    vy(maxParticles, 0), ax(maxParticles, 0), ay(maxParticles, 0),
+    mass(maxParticles, 30), radius(maxParticles, 7), 
+    impulse(maxParticles, Vec2<float>(0, 0)), isActive(maxParticles, false), 
+    shapes(maxParticles) {
+    this->maxParticleCount = maxParticles;
     currIndex = 0;
+    restitution = 0.9f;
+
+    r[0] = 255;
+    r[1] = 0;
+    b[0] = 255;
+    b[1] = 0;
 }
 
 Particles::~Particles() { }
 
 void Particles::makeActive(unsigned int count, float direction) {
     while (currIndex < maxParticleCount && count > 0) {
-        x[currIndex] = 100 + (direction < 0 ? 0.0f : 600.0f);
+        x[currIndex] = 100 + (direction < 0 ? 0.0f : 300.0f);
         y[currIndex] = 200;
         vy[currIndex] = 0;
         vx[currIndex] = -100 * (float)direction;
@@ -26,7 +33,7 @@ void Particles::makeActive(unsigned int count, float direction) {
 
 void Particles::makeInactive(unsigned int count) { }
 
-void Particles::update(double deltaTime) {
+void Particles::update(float deltaTime) {
     // this could be further parallelized using
     // - OpenMP
     // - CUDA
@@ -39,6 +46,29 @@ void Particles::update(double deltaTime) {
         vx[i] += ax[i] * (float)deltaTime;
         vy[i] += ay[i] * (float)deltaTime;
     }
+}
+
+Vec2<float> Particles::calcImpulse(size_t i, size_t j) {
+    float relativeVX = vx[i] - vx[j];
+    float relativeVY = vy[i] - vy[j];
+
+    float dx = x[i] - x[j];
+    float dy = y[i] - y[j];
+
+    float dist = sqrt(dx * dx + dy * dy);
+    if (dist == 0) return Vec2<float>(0, 0);
+    dx /= dist;
+    dy /= dist;
+
+    float dotProd = relativeVX * dx + relativeVY * dy;
+
+    // we don't need to calculate the impulse when the particles are moving 
+    // away from each other 
+    if (dotProd >= 0) return Vec2<float>(0, 0);
+
+    float impulseScalar = -(1 + restitution) * dotProd / (mass[i] + mass[j]);
+
+    return Vec2<float>(impulseScalar * dx, impulseScalar * dy);
 }
 
 void Particles::collisionDetection() {
@@ -73,6 +103,9 @@ void Particles::collisionDetection() {
 
             if (dist < totalRadius * totalRadius) {
                 cout << "collision detected" << endl;
+                Vec2<float> impulseVector = calcImpulse(i, j);
+                impulse[i] += impulseVector;
+                impulse[j] -= impulseVector;
             }
         }
     }
@@ -87,6 +120,14 @@ void Particles::collisionResponse() {
     // an approach here would be using a force based model, where we calculate 
     // the net force vector on a particle, and then use that to move our 
     // particle in another direction.
+    for (size_t i = 0; i < maxParticleCount; i++) {
+        if (!isActive[i]) continue;
+        vx[i] += impulse[i].x * mass[i];
+        vy[i] += impulse[i].y * mass[i];
+        // cout << impulse[i] << " " << vx[i] << " " << vy[i] << endl;
+        impulse[i] = Vec2<float>::zero;
+    }
+    // cout << endl;
 }
 
 void Particles::render(sf::RenderWindow& window, float deltaTime) {

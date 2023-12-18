@@ -16,8 +16,8 @@ SceneManager::SceneManager(string configFilename) : clock() {
 SceneManager::~SceneManager() { }
 
 void SceneManager::run() {
-    double t = 0.0;
-    double accumulator = 0.0;
+    float t = 0.0;
+    float accumulator = 0.0;
 
     while (window.isOpen()) {
         // window event update
@@ -25,7 +25,7 @@ void SceneManager::run() {
 
         // we only update the physics every DELTA_TIME seconds, meaning every 
         // second it would have 20 physics updates
-        double frameTime = clock.getElapsedTime().asSeconds();
+        float frameTime = clock.getElapsedTime().asSeconds();
         clock.restart();
         accumulator += frameTime;
         while (accumulator >= DELTA_TIME) {
@@ -81,15 +81,15 @@ void Scene::pollEvent(sf::RenderWindow& window) {
     }
 }
 
-void Scene::update(sf::RenderWindow& window, double deltaTime) {
-    // 1. update the position, velocity, and accel of the individual particles
-    particles->update(deltaTime);
-
-    // 2. perform collision check
+void Scene::update(sf::RenderWindow& window, float deltaTime) {
+    // 1. perform collision check
     particles->collisionDetection();
 
-    // 3. perform collision response
+    // 2. perform collision response
     particles->collisionResponse();
+
+    // 3. update the position, velocity, and accel of the individual particles
+    particles->update(deltaTime);
 }
 
 void Scene::render(sf::RenderWindow& window, float deltaTime) {

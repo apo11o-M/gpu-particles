@@ -23,11 +23,15 @@ class Particles {
         unsigned int currIndex;
         unsigned int maxParticleCount;
 
-        vector<uint8_t> r, g, b;
+        // physics stuff
         vector<float> x, y, vx, vy, ax, ay;
         vector<float> radius, mass;
+        vector<Vec2<float>> impulse;
+        float restitution;
         vector<bool> isActive;
 
+        // rendering stuff
+        vector<uint8_t> r, g, b;
         vector<sf::CircleShape> shapes;
 
     public:
@@ -49,10 +53,31 @@ class Particles {
          */
         void makeInactive(unsigned int count);
 
-        void update(double deltaTime);
+        void update(float deltaTime);
 
+        /**
+         * @brief Check if any of the particles are colliding with each other 
+         * (and/or the walls). If so, calculate the net impulse at each particle
+         * for later update
+         */
         void collisionDetection();
 
+        /**
+         * @brief Calculate the impulse of the collision between particle i
+         * and j. Here we are assuming both particles are circles and do not 
+         * have any angular momentum.
+         * 
+         * @param i first particle
+         * @param j second particle
+         * @return Vec2<float> The result impulse vector
+         */
+        Vec2<float> calcImpulse(size_t i, size_t j);
+
+        /**
+         * @brief Apply the net impulse of each particle to their respective 
+         * velocity for later update
+         * 
+         */
         void collisionResponse();
 
         void render(sf::RenderWindow& window, float deltaTime);
