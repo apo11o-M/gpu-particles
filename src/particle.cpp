@@ -1,20 +1,21 @@
 #include "particle.h"
 
-Particles::Particles(unsigned int maxParticles) : 
-    r(maxParticles, 66), g(maxParticles, 205), b(maxParticles, 227),
+Particles::Particles(unsigned int maxParticles, unsigned int borderLeft, 
+    unsigned int borderRight, unsigned int borderTop, unsigned int borderBottom)
+    : r(maxParticles, 66), g(maxParticles, 205), b(maxParticles, 227),
     x(maxParticles, 0), y(maxParticles, 0), vx(maxParticles, 0),
     vy(maxParticles, 0), ax(maxParticles, 0), ay(maxParticles, 0),
     mass(maxParticles, 30), radius(maxParticles, 7), 
     impulse(maxParticles, Vec2<float>(0, 0)), isActive(maxParticles, false), 
     shapes(maxParticles) {
+
     this->maxParticleCount = maxParticles;
     currIndex = 0;
     restitution = 0.9f;
-
-    // r[0] = 255;
-    // r[1] = 0;
-    // b[0] = 255;
-    // b[1] = 0;
+    this->borderLeft = borderLeft;
+    this->borderRight = borderRight;
+    this->borderTop = borderTop;
+    this->borderBottom = borderBottom;
 }
 
 Particles::~Particles() { }
@@ -82,11 +83,11 @@ void Particles::collisionResolution() {
         if (!isActive[i]) continue;
 
         // check for collision with the border
-        if (x[i] - radius[i] < 0 || x[i] + radius[i] > 800) {
+        if (x[i] - radius[i] < borderLeft || x[i] + radius[i] > borderRight) {
             // cout << "outside left/right wall" << endl;
             vx[i] *= -1;
         }
-        if (y[i] - radius[i] < 0 || y[i] + radius[i] > 600) {
+        if (y[i] - radius[i] < borderTop || y[i] + radius[i] > borderBottom) {
             // cout << "outside top/bottom wall" << endl;
             vy[i] *= -1;
         }
@@ -124,7 +125,8 @@ void Particles::render(sf::RenderWindow& window, float deltaTime) {
         if (!isActive[i]) continue;
 
         // interpolating the position to achieve smoother movement
-        shapes[i].setPosition(x[i] + vx[i] * deltaTime, y[i] + vy[i] * deltaTime);
+        shapes[i].setPosition(x[i] - radius[i] + vx[i] * deltaTime, 
+                              y[i] - radius[i] + vy[i] * deltaTime);
         shapes[i].setRadius(radius[i]);
         shapes[i].setFillColor(sf::Color(r[i], g[i], b[i]));
         window.draw(shapes[i]);

@@ -23,6 +23,10 @@ class Particles {
         unsigned int currIndex;
         unsigned int maxParticleCount;
 
+        // the border of the scene, should be <= to the windows size
+        // All particles should be bounded within this border 
+        unsigned int borderLeft, borderRight, borderTop, borderBottom;
+
         // physics stuff
         vector<float> x, y, vx, vy, ax, ay;
         vector<float> radius, mass;
@@ -35,7 +39,9 @@ class Particles {
         vector<sf::CircleShape> shapes;
 
     public:
-        Particles(unsigned int maxParticleCount);
+        Particles(unsigned int maxParticleCount, unsigned int borderLeft, 
+            unsigned int borderRight, unsigned int borderTop, 
+            unsigned int borderBottom);
 
         ~Particles();
 

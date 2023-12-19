@@ -31,19 +31,11 @@ class SceneManager {
         void run();
 };
 
-// the border of the scene, should be <= to the windows size
-// All particles should be bounded within this border 
-struct Border {
-    unsigned int left, right, top, bottom;
-};
-
 class Scene {
     private:
         std::unique_ptr<Particles> particles;
         unsigned int maxParticleCount;
         int gravity;
-
-        struct Border border;
 
     public:
         /**

@@ -10,7 +10,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
     window.setVerticalSyncEnabled(true);
 
     // TODO: parse the config file and create the scene
-    scene = std::make_unique<Scene>(30, 0, 800, 0, 600);
+    scene = std::make_unique<Scene>(30, 50, 500, 100, 300);
 }
 
 SceneManager::~SceneManager() { }
@@ -44,14 +44,11 @@ void SceneManager::run() {
 Scene::Scene(unsigned int maxParticleCount, 
         unsigned int borderLeft, unsigned int borderRight, 
         unsigned int borderTop, unsigned int borderBottom) {
-    particles = std::make_unique<Particles>(maxParticleCount);
     this->maxParticleCount = maxParticleCount;
     gravity = 0;
 
-    border.left = borderLeft;
-    border.right = borderRight;
-    border.top = borderTop;
-    border.bottom = borderBottom;
+    particles = std::make_unique<Particles>(maxParticleCount, borderLeft, 
+        borderRight, borderTop, borderBottom);
 }
 
 Scene::~Scene() { }
