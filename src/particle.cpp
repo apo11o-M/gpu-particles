@@ -26,7 +26,7 @@ void Particles::makeActive(unsigned int count, float direction) {
         y[currIndex] = 200 + (direction < 0 ? 5.0f : 0.0f);
         // y[currIndex] = 200;
         vy[currIndex] = 0;
-        vx[currIndex] = -500 * (float)direction;
+        vx[currIndex] = -400 * (float)direction;
         isActive[currIndex] = true;
         currIndex++;
         count--;
@@ -35,7 +35,7 @@ void Particles::makeActive(unsigned int count, float direction) {
 
 void Particles::makeInactive(unsigned int count) { }
 
-void Particles::update(float deltaTime) {
+void Particles::update(float deltaTime, float gravity) {
     // this could be further parallelized using
     // - OpenMP
     // - CUDA
@@ -43,11 +43,14 @@ void Particles::update(float deltaTime) {
     // - threadpool
     for (size_t i = 0; i < maxParticleCount; i++) {
         if (!isActive[i]) continue;
-        x[i] += vx[i] * (float)deltaTime;
-        y[i] += vy[i] * (float)deltaTime;
         vx[i] += ax[i] * (float)deltaTime;
         vy[i] += ay[i] * (float)deltaTime;
+        x[i] += vx[i] * (float)deltaTime;
+        y[i] += vy[i] * (float)deltaTime;
     }
+    // cout << "update " << x[0] << " " << y[0] << endl;
+    // cout << "update " << x[1] << " " << y[1] << endl;
+    // cout << endl;
 }
 
 Vec2<float> Particles::calcImpulse(size_t i, size_t j) {
@@ -73,7 +76,7 @@ Vec2<float> Particles::calcImpulse(size_t i, size_t j) {
     return Vec2<float>(impulseScalar * dx, impulseScalar * dy);
 }
 
-void Particles::collisionResolution() {
+void Particles::collisionResolution(float deltaTime, float gravity) {
     // we can use a quadtree to partition the space into smaller chunks, and 
     // only check the particles within these chunks to improve performance.
     // For now we will be using a naive approach, which is to check every 
@@ -82,14 +85,27 @@ void Particles::collisionResolution() {
     for (size_t i = 0; i < maxParticleCount; i++) {
         if (!isActive[i]) continue;
 
-        // check for collision with the border
-        if (x[i] - radius[i] < borderLeft || x[i] + radius[i] > borderRight) {
-            // cout << "outside left/right wall" << endl;
-            vx[i] *= -1;
+        // There are two major things to check for collision
+        // - walls
+        // - other particles
+
+        // left and right border collision
+        if ((x[i] - radius[i] < borderLeft && vx[i] < 0) 
+                || (x[i] + radius[i] > borderRight && vx[i] > 0)) {
+            vx[i] *= -1 * restitution;
         }
-        if (y[i] - radius[i] < borderTop || y[i] + radius[i] > borderBottom) {
-            // cout << "outside top/bottom wall" << endl;
-            vy[i] *= -1;
+        // bottom border collision
+        if (y[i] - radius[i] < borderTop && vy[i] < 0) {
+            vy[i] *= -1 * restitution;
+        }
+        // top border collision
+        if (y[i] + radius[i] > borderBottom && vy[i] > 0) {
+            vy[i] *= -1 * restitution;
+        }
+        // apply gravity only when the particle is not touching the bottom 
+        // border, or else the particle will try to phase through the border
+        if (y[i] + radius[i] < borderBottom) {
+            vy[i] += gravity * (float)deltaTime;
         }
 
         // check for collision with all other particles

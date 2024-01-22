@@ -35,7 +35,7 @@ class Scene {
     private:
         std::unique_ptr<Particles> particles;
         unsigned int maxParticleCount;
-        int gravity;
+        float gravity;
 
     public:
         /**

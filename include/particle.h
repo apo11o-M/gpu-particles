@@ -59,14 +59,14 @@ class Particles {
          */
         void makeInactive(unsigned int count);
 
-        void update(float deltaTime);
+        void update(float deltaTime, float gravity);
 
         /**
          * @brief Check if any of the particles are colliding with each other 
          * (and/or the walls). If so, calculate the net impulse at each particle
          * for later update
          */
-        void collisionResolution();
+        void collisionResolution(float deltaTime, float gravity);
 
         /**
          * @brief Calculate the impulse of the collision between particle i

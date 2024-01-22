@@ -45,7 +45,7 @@ Scene::Scene(unsigned int maxParticleCount,
         unsigned int borderLeft, unsigned int borderRight, 
         unsigned int borderTop, unsigned int borderBottom) {
     this->maxParticleCount = maxParticleCount;
-    gravity = 0;
+    gravity = 10000;
 
     particles = std::make_unique<Particles>(maxParticleCount, borderLeft, 
         borderRight, borderTop, borderBottom);
@@ -81,11 +81,10 @@ void Scene::pollEvent(sf::RenderWindow& window) {
 void Scene::update(sf::RenderWindow& window, float deltaTime) {
     // 1. perform collision check
     // 2. perform collision response
-    particles->collisionResolution();
-
+    particles->collisionResolution(deltaTime, gravity);
 
     // 3. update the position, velocity, and accel of the individual particles
-    particles->update(deltaTime);
+    particles->update(deltaTime, gravity);
 }
 
 void Scene::render(sf::RenderWindow& window, float deltaTime) {
