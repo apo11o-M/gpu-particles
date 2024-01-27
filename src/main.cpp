@@ -2,7 +2,7 @@
 #include "scene.h"
 
 static void usage(string av0) {
-    cerr << "Usage: %s [-c <config filename>]" << endl;
+    cerr << "Usage: gpu-particles [-c <config filename>]" << endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -17,7 +17,6 @@ int main(int argc, char* argv[]) {
                 usage(argv[0]);
                 return 0;
             }
-            i++;
         }
     } catch (const std::exception& e) {
         cerr << "Error: " << e.what() << endl;

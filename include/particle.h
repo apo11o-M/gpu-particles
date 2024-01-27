@@ -31,6 +31,8 @@ class Particles {
         vector<float> x, y, vx, vy, ax, ay;
         vector<float> radius, mass;
         vector<Vec2<float>> impulse;
+        float dampingFactor;
+        float pressureCoeff;
         float restitution;
         vector<bool> isActive;
 
@@ -50,7 +52,7 @@ class Particles {
          * 
          * @param count How many particles to be active
          */
-        void makeActive(unsigned int count, float direction);
+        void makeActive(unsigned int count, unsigned int x, unsigned int y, float direction);
 
         /**
          * @brief Make the specified particles inactive
@@ -61,6 +63,9 @@ class Particles {
 
         void update(float deltaTime, float gravity);
 
+        void render(sf::RenderWindow& window, float deltaTime);
+
+    private:
         /**
          * @brief Check if any of the particles are colliding with each other 
          * (and/or the walls). If so, calculate the net impulse at each particle
@@ -79,7 +84,25 @@ class Particles {
          */
         Vec2<float> calcImpulse(size_t i, size_t j);
 
-        void render(sf::RenderWindow& window, float deltaTime);
+        /**
+         * @brief Check if the particle is on the ground, need to take into 
+         * account of some thresholds because of floating point errors and 
+         * oscillating math functions
+         * 
+         * @param i the index of the particle
+         * @param threshold tolerance for the errors
+         * @return whether the particle is on the ground
+         */
+        bool onGround(size_t i, float threshold);
+
+        /**
+         * @brief Check if the particle is not moving
+         * 
+         * @param i 
+         * @param threshold 
+         * @return whether the particle is not moving
+         */
+        bool isResting(size_t i, float threshold);
 };
 
 #endif // PARTICLE_H

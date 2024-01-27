@@ -6,7 +6,9 @@
 #include <SFML/Graphics.hpp>
 
 // standard libraries
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cmath>
 #include <iostream>
 #include <memory>

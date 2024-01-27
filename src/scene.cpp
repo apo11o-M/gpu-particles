@@ -10,7 +10,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
     window.setVerticalSyncEnabled(true);
 
     // TODO: parse the config file and create the scene
-    scene = std::make_unique<Scene>(30, 50, 500, 100, 300);
+    scene = std::make_unique<Scene>(100, 50, 500, 100, 300);
 }
 
 SceneManager::~SceneManager() { }
@@ -45,6 +45,10 @@ Scene::Scene(unsigned int maxParticleCount,
         unsigned int borderLeft, unsigned int borderRight, 
         unsigned int borderTop, unsigned int borderBottom) {
     this->maxParticleCount = maxParticleCount;
+    this->borderLeft = borderLeft;
+    this->borderRight = borderRight;
+    this->borderTop = borderTop;
+    this->borderBottom = borderBottom;
     gravity = 10000;
 
     particles = std::make_unique<Particles>(maxParticleCount, borderLeft, 
@@ -66,10 +70,19 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                 }
                 break;
             case (sf::Event::MouseButtonPressed):
+
                 if (event.mouseButton.button == sf::Mouse::Left) {
-                    particles->makeActive(1, 1);
+                    unsigned int x = std::clamp((unsigned int)event.mouseButton.x, 
+                        borderLeft, borderRight);
+                    unsigned int y = std::clamp((unsigned int)event.mouseButton.y, 
+                        borderTop, borderBottom);
+                    particles->makeActive(1, x, y, 1);
                 } else if (event.mouseButton.button == sf::Mouse::Right) {
-                    particles->makeActive(1, -1);
+                    unsigned int x = std::clamp((unsigned int)event.mouseButton.x, 
+                        borderLeft, borderRight);
+                    unsigned int y = std::clamp((unsigned int)event.mouseButton.y, 
+                        borderTop, borderBottom);
+                    particles->makeActive(1, x, y, -1);
                 }
                 break;
             default:
@@ -81,8 +94,6 @@ void Scene::pollEvent(sf::RenderWindow& window) {
 void Scene::update(sf::RenderWindow& window, float deltaTime) {
     // 1. perform collision check
     // 2. perform collision response
-    particles->collisionResolution(deltaTime, gravity);
-
     // 3. update the position, velocity, and accel of the individual particles
     particles->update(deltaTime, gravity);
 }

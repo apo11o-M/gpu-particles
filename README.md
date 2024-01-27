@@ -11,3 +11,5 @@ To build the project from scratch, run the following command in the project root
 `cmake -B build -S . "-DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake"`
 
 `cmake --build build --config Release`
+
+<!-- cmake -B build -S . "-DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake" ; cmake --build build/ ; .\build\Debug\gpu-particles.exe -->
