@@ -1,5 +1,5 @@
-#include "pch.h"
-#include "scene.h"
+#include "pch.hpp"
+#include "scene.hpp"
 
 static void usage(string av0) {
     cerr << "Usage: gpu-particles [-c <config filename>]" << endl;

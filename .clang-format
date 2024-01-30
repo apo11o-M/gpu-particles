@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+IndentWidth: 4
+UseTab: Never
+TabWidth: 4
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: true
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
+BreakBeforeBraces: Attach
+InsertNewlineAtEOF: true

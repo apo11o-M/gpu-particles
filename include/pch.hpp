@@ -1,26 +1,26 @@
-#ifndef PCH_H
-#define PCH_H
+#ifndef PCH_HPP
+#define PCH_HPP
 
 // sfml windows and drawing functions
-#include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
 
 // standard libraries
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
-#include <cmath>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
 
+using std::cerr;
+using std::cout;
+using std::endl;
 using std::string;
 using std::vector;
-using std::cout;
-using std::cerr;
-using std::endl;
 
-#include "vec2.h"
+#include "vec2.hpp"
 
-#endif //PCH_H
+#endif  // PCH_HPP

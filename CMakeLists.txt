@@ -7,10 +7,8 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-message(CMAKE_CXX_COMPILER_ID="${CMAKE_CXX_COMPILER_ID}")
-
 # set all necessary flags for compiling. Same flags, but just different format
-if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     # using Visual Studio C++
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /Zi")
     set(CMAKE_CXX_FLAGS_RELEASE "/Ox")
