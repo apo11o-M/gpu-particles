@@ -8,7 +8,7 @@ static void usage(string av0) {
 int main(int argc, char* argv[]) {
     cout << "Program starts.." << endl;
 
-    string config = "default.json";
+    string config = "default-config.json";
     try {
         for (int i = 0; i < argc; i++) {
             if (string(argv[i]) == "-c") {

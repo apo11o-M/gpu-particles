@@ -2,7 +2,7 @@
 #define VEC2_HPP
 
 #include <iostream>
-#include <stdexcept>
+#include <math.h> // for sqrtf in device code
 
 // Class template for manipulating 2 dimensional vectors
 template <typename T>
@@ -17,57 +17,62 @@ class Vec2 {
     /**
      * @brief Construct a new Vec2 object
      */
-    Vec2(T x = 0, T y = 0) : x(x), y(y) {}
+    __host__ __device__ Vec2(T x = 0, T y = 0) : x(x), y(y) {}
 
     /**
      * @brief The length of the vector
      */
-    T length() const { return sqrt(x * x + y * y); }
+    __host__ __device__ T length() const { return sqrtf(x * x + y * y); }
 
     /**
      * @brief The squared length of the vector, suitable for comparisons
      * as its more efficient than length()
      */
-    T lengthSq() const { return x * x + y * y; }
+    __host__ __device__ T lengthSq() const { return x * x + y * y; }
 
     /**
      * @brief Vector with the same direction, but length = 1
      */
-    Vec2<T> normalized() const {
+    __host__ __device__ Vec2<T> normalized() const {
         T len = length();
-        if (len == 0) throw std::runtime_error("Cannot normalize zero vector");
+        // throwing errors is not supported on device code, so just return zero
+        if (len == 0) return Vec2<T>(0, 0);
         return Vec2<T>(x / len, y / len);
     }
 
     // ==================== Operator overloading ====================
 
-    Vec2& operator+=(const Vec2& rhs) {
+    __host__ __device__ Vec2& operator+=(const Vec2& rhs) {
         x += rhs.x;
         y += rhs.y;
         return *this;
     }
 
-    Vec2& operator-=(const Vec2& rhs) {
+    __host__ __device__ Vec2& operator-=(const Vec2& rhs) {
         x -= rhs.x;
         y -= rhs.y;
         return *this;
     }
 
-    Vec2& operator*=(const T& rhs) {
+    __host__ __device__ Vec2& operator*=(const T& rhs) {
         x *= rhs;
         y *= rhs;
         return *this;
     }
 
-    Vec2& operator/=(const T& rhs) {
+    __host__ __device__ Vec2& operator/=(const T& rhs) {
         x /= rhs;
         y /= rhs;
         return *this;
     }
 
-    bool operator==(const Vec2& rhs) const { return x == rhs.x && y == rhs.y; }
+    __host__ __device__ bool operator==(const Vec2& rhs) const {
+        return x == rhs.x && y == rhs.y;
+    }
 
-    bool operator!=(const Vec2& rhs) const { return !(*this == rhs); }
+    __host__ __device__ bool operator!=(const Vec2& rhs) const {
+        return !(*this == rhs);
+    }
 };
 
 template <typename T>
@@ -84,7 +89,7 @@ const Vec2<T> Vec2<T>::zero = Vec2<T>(0, 0);
  * @return A new dot product value
  */
 template <typename T>
-T dot(const Vec2<T>& lhs, const Vec2<T>& rhs) {
+__host__ __device__ T dot(const Vec2<T>& lhs, const Vec2<T>& rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y;
 }
 
@@ -93,32 +98,32 @@ T dot(const Vec2<T>& lhs, const Vec2<T>& rhs) {
  * @return A new cross product 2D vector
  */
 template <typename T>
-T cross(const Vec2<T>& lhs, const Vec2<T>& rhs) {
+__host__ __device__ T cross(const Vec2<T>& lhs, const Vec2<T>& rhs) {
     return lhs.x * rhs.y - lhs.y * rhs.x;
 }
 
 template <typename T>
-Vec2<T> operator+(const Vec2<T>& lhs, const Vec2<T>& rhs) {
+__host__ __device__ Vec2<T> operator+(const Vec2<T>& lhs, const Vec2<T>& rhs) {
     return Vec2<T>(lhs.x + rhs.x, lhs.y + rhs.y);
 }
 
 template <typename T>
-Vec2<T> operator-(const Vec2<T>& lhs, const Vec2<T>& rhs) {
+__host__ __device__ Vec2<T> operator-(const Vec2<T>& lhs, const Vec2<T>& rhs) {
     return Vec2<T>(lhs.x - rhs.x, lhs.y - rhs.y);
 }
 
 template <typename T>
-Vec2<T> operator*(const Vec2<T>& lhs, const T& rhs) {
+__host__ __device__ Vec2<T> operator*(const Vec2<T>& lhs, const T& rhs) {
     return Vec2<T>(lhs.x * rhs, lhs.y * rhs);
 }
 
 template <typename T>
-Vec2<T> operator/(const Vec2<T>& lhs, const T& rhs) {
+__host__ __device__ Vec2<T> operator/(const Vec2<T>& lhs, const T& rhs) {
     return Vec2<T>(lhs.x / rhs, lhs.y / rhs);
 }
 
 template <typename T>
-std::ostream& operator<<(std::ostream& os, const Vec2<T>& vec) {
+__host__ std::ostream& operator<<(std::ostream& os, const Vec2<T>& vec) {
     return os << "(" << vec.x << ", " << vec.y << ")";
 }
 

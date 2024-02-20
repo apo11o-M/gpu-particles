@@ -6,12 +6,27 @@ SceneManager::SceneManager(string configFilename) : clock() {
 
     window.create(sf::VideoMode(800, 600), "gpu-particles: " + configFilename,
                   sf::Style::Default, settings);
+    // window.setFramerateLimit(30);
     window.setFramerateLimit(144);
     window.setVerticalSyncEnabled(true);
 
     // TODO: parse the config file and create the scene
-    // scene = std::make_unique<Scene>(100, 50, 500, 100, 300);
-    scene = std::make_unique<Scene>(100, 50, 100, 100, 300);
+    fps = FPS();
+    try {
+        if (!font.loadFromFile("assets/arial.ttf")) {
+            throw std::runtime_error("Could not load font");
+        }
+        fpsText = sf::Text("", font, 16);
+        fpsText.setFont(font);
+        fpsText.setFillColor(sf::Color::White);
+        fpsText.setPosition(15.0f, 15.0f);
+    } catch (std::runtime_error& e) {
+        std::cerr << e.what() << std::endl;
+        exit(1);
+    }
+
+    scene = std::make_unique<Scene>(400, 200, 600, 100, 450);
+    // scene = std::make_unique<Scene>(6, 200, 600, 100, 500);
 }
 
 SceneManager::~SceneManager() {}
@@ -39,6 +54,12 @@ void SceneManager::run() {
         // render onto the screen every frame. Here we also interpolates the
         // particle position
         scene->render(window, accumulator);
+
+        fps.update();
+        fpsText.setString("FPS: " + std::to_string(fps.getFPS()));
+        window.draw(fpsText);
+        
+        window.display();
     }
 }
 
@@ -81,6 +102,7 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                         std::clamp((unsigned int)event.mouseButton.y, borderTop,
                                    borderBottom);
                     particles->makeActive(1, x, y, 1);
+                    particles->makeActive(1, x, y, -1);
                 } else if (event.mouseButton.button == sf::Mouse::Right) {
                     unsigned int x =
                         std::clamp((unsigned int)event.mouseButton.x,
@@ -88,6 +110,7 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                     unsigned int y =
                         std::clamp((unsigned int)event.mouseButton.y, borderTop,
                                    borderBottom);
+                    particles->makeActive(1, x, y, 1);
                     particles->makeActive(1, x, y, -1);
                 }
                 break;
@@ -102,13 +125,11 @@ void Scene::update(sf::RenderWindow& window, float deltaTime) {
 }
 
 void Scene::render(sf::RenderWindow& window, float deltaTime) {
-    window.clear(sf::Color::Cyan);
-    sf::RectangleShape border(
-        sf::Vector2f(borderRight - borderLeft, borderBottom - borderTop));
-    border.setPosition(borderLeft, borderTop);
-    window.draw(border);
-
+    window.clear(sf::Color::Black);
+    // sf::RectangleShape border(
+    //     sf::Vector2f(borderRight - borderLeft, borderBottom - borderTop));
+    // border.setPosition(borderLeft, borderTop);
+    // border.setFillColor(sf::Color::Black);
+    // window.draw(border);
     particles->render(window, deltaTime);
-
-    window.display();
 }

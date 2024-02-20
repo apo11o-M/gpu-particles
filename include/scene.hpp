@@ -2,6 +2,7 @@
 #define SCENE_HPP
 
 #include "particle.hpp"
+#include "fps.hpp"
 #include "pch.hpp"
 
 #define DELTA_TIME 0.01f
@@ -13,6 +14,9 @@ class SceneManager {
     sf::RenderWindow window;
     std::unique_ptr<Scene> scene;
     sf::Clock clock;
+    FPS fps;
+    sf::Text fpsText;
+    sf::Font font;
 
    public:
     /**

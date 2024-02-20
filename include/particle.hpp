@@ -27,17 +27,32 @@ class Particles {
     // All particles should be bounded within this border
     unsigned int borderLeft, borderRight, borderTop, borderBottom;
 
+    // mouse events
+    unsigned int mouseXPos, mouseYPos;
+    BOOL spawn;
+
     // physics stuff
     vector<Vec2<float>> velocity, position;
     vector<float> radius, mass;
     float dampingFactor;
     float dampingFactorRate;
     float restitution;
-    vector<bool> isActive;
+    vector<BOOL> isActive;
 
     // rendering stuff
     vector<uint8_t> r, g, b;
     vector<sf::CircleShape> shapes;
+
+    // Cuda stuff, pointers to the device memory for particles
+    Vec2<float> *d_positionIn, *d_velocityIn;
+    Vec2<float> *d_positionOut, *d_velocityOut;
+    BOOL* d_isActive;
+
+    unsigned int h_maxBlockCount;
+    unsigned int h_maxThreadCount;
+
+   private:
+    void swapDeviceParticles();
 
    public:
     Particles(unsigned int maxParticleCount, unsigned int borderLeft,
