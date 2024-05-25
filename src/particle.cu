@@ -58,7 +58,7 @@ Particles::Particles(unsigned int maxParticles, unsigned int borderLeft,
 
     mouseXPos = 0;
     mouseYPos = 0;
-    spawn = false;
+    spawn = FALSE;
 
     // ========================================================================
     // Cuda stuff are down here
@@ -185,24 +185,25 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     // since the particle count may exceed the maximum thread count, we have 
     // each thread start at a unique index and jumps forward by the block size
     for (int j = threadIdx.x; j < d_maxParticleCount; j += blockDim.x) {
-        if (!d_isActive[j] || !d_isActive[i]) continue;
-        if (i != j) {
-            Vec2<float> delta = posIn[i] - posIn[j];
-            if (delta.lengthSq() <= powf(d_radius + d_radius, 2)) {
-                Vec2<float> deltaNorm = delta.normalized();
-                float overlap = (d_radius + d_radius) - delta.length();
-                posDelta += deltaNorm * overlap / 2.5f;
+        if (!d_isActive[j] || !d_isActive[i] || i == j) continue;
+        
+        Vec2<float> delta = posIn[i] - posIn[j];
+        if (delta.lengthSq() == 0 
+            || delta.lengthSq() > powf(d_radius + d_radius, 2)) continue;
+    
+        Vec2<float> deltaNorm = delta.normalized();
+        float overlap = (d_radius + d_radius) - delta.length();
+        posDelta += deltaNorm * overlap / 2.5f;
 
-                Vec2<float> relativeVelocity = velIn[i] - velIn[j];
-                float dotProd = dot(relativeVelocity, deltaNorm);
-                if (dotProd <= 0) {
-                    float impulse = 2 * dotProd / (d_mass + d_mass);
-                    velDelta -= deltaNorm * impulse * d_mass * d_restitution;
-                }
-            }
+        Vec2<float> relativeVelocity = velIn[i] - velIn[j];
+        float dotProd = dot(relativeVelocity, deltaNorm);
+        if (dotProd <= 0) {
+            float impulse = 2 * dotProd / (d_mass + d_mass);
+            velDelta -= deltaNorm * impulse * d_mass * d_restitution;
         }
     }
 
+    // udpate the shared memory with each particle's delta from the collision
     atomicAdd(&posDeltaX, posDelta.x);
     atomicAdd(&posDeltaY, posDelta.y);
     atomicAdd(&velDeltaX, velDelta.x);
@@ -212,11 +213,13 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     // only the first thread in the block will update the shared memory
     if (threadIdx.x != 0) return;
 
+    // coalesce the shared memory into the final position and velocity output
     velOut[i] = velIn[i] + Vec2<float>(velDeltaX, velDeltaY);
     velOut[i] *= powf(d_dampingFactor, d_dampingFactorRate * deltaTime);
     velOut[i].y += gravity * deltaTime;
     posOut[i] = posIn[i] + Vec2<float>(posDeltaX, posDeltaY) + velOut[i] * deltaTime;
 
+    // check for border collisions
     if (posOut[i].x - d_radius < d_borderLeft) {
         posOut[i].x = d_borderLeft + d_radius;
         velOut[i].x *= -1 * d_restitution;

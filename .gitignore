@@ -1,3 +1,5 @@
+*.exe
+
 # C/C++ build outputs
 .build/
 build/

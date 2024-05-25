@@ -4,7 +4,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
 
-    window.create(sf::VideoMode(800, 600), "gpu-particles: " + configFilename,
+    window.create(sf::VideoMode(1000, 800), "gpu-particles: " + configFilename,
                   sf::Style::Default, settings);
     // window.setFramerateLimit(30);
     window.setFramerateLimit(144);
@@ -25,7 +25,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
         exit(1);
     }
 
-    scene = std::make_unique<Scene>(400, 200, 600, 100, 450);
+    scene = std::make_unique<Scene>(10000, 200, 800, 100, 700);
     // scene = std::make_unique<Scene>(6, 200, 600, 100, 500);
 }
 
@@ -56,7 +56,7 @@ void SceneManager::run() {
         scene->render(window, accumulator);
 
         fps.update();
-        fpsText.setString("FPS: " + std::to_string(fps.getFPS()));
+        fpsText.setString("FPS: " + std::to_string(fps.getFPS()) + " , Particles: " + std::to_string(scene->particles->currIndex));
         window.draw(fpsText);
         
         window.display();

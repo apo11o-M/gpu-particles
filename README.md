@@ -2,9 +2,9 @@
 
 Simulate particle collisions with C++ and NVIDIA GPUs!
 
-## Features
-
 ## Getting Started
+
+### Windows
 
 To build the project from scratch, run the following command in the project root directory
 

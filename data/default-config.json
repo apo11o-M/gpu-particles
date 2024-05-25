@@ -9,7 +9,7 @@
   // Background color of the canvas, RGBA = RedGreenBlueAlpha
   "backgroundColor": "0x000000ff",
   // maximum number of particles in the simulation
-  "maxNumParticles": 100,
+  "maxNumParticles": 10000,
   
   // ====================== particle config =====================
   // radius of the particles to render

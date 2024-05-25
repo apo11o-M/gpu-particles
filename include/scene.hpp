@@ -37,12 +37,12 @@ class SceneManager {
 
 class Scene {
    private:
-    std::unique_ptr<Particles> particles;
     unsigned int maxParticleCount;
     unsigned int borderLeft, borderRight, borderTop, borderBottom;
     float gravity;
 
    public:
+    std::unique_ptr<Particles> particles;
     /**
      * @brief Construct a new Scene object
      */
