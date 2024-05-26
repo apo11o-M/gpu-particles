@@ -38,7 +38,7 @@ Particles::Particles(unsigned int maxParticles, unsigned int borderLeft,
       mass(maxParticles, 20),
       radius(maxParticles, 3),
       isActive(maxParticles, false),
-      shapes(maxParticles) {
+      vertices(sf::Triangles, maxParticles * 6) {
     this->maxParticleCount = maxParticles;
     currIndex = 0;
 
@@ -130,11 +130,8 @@ void Particles::makeActive(unsigned int count, unsigned int xPos,
 
 void Particles::makeInactive(unsigned int count) {}
 
-void Particles::render(sf::RenderWindow &window, float deltaTime) {
-    // using sf::Triangles to draw the particles, which gives us significant 
-    // performance boost as the window.draw() function is expensive
-    sf::VertexArray vertices(sf::Triangles, maxParticleCount * 6);
-    for (size_t i = 0; i < maxParticleCount; i++) {
+void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTime) {
+    for (size_t i = startIndex; i < endIndex; i++) {
         if (!isActive[i]) continue;
 
         // interpolating the position to achieve smoother movement
@@ -153,6 +150,25 @@ void Particles::render(sf::RenderWindow &window, float deltaTime) {
             vertices[i * 6 + j].color = sf::Color(r[i], g[i], b[i]);
         }
     }
+}
+
+void Particles::render(sf::RenderWindow &window, float deltaTime) {
+    // 60 fps at 10000 particles
+    const size_t threadCount = thread::hardware_concurrency();
+    const size_t chunkSize = maxParticleCount / threadCount;
+
+    vector<thread> threads;
+    for (size_t t = 0; t < threadCount; t++) {
+        size_t startIndex = t * chunkSize;
+        size_t endIndex = (t == threadCount - 1) ? maxParticleCount : startIndex + chunkSize;
+
+        threads.emplace_back(&Particles::updateVertices, this, startIndex, endIndex, deltaTime);
+    }
+
+    for (thread &thread : threads) {
+        thread.join();
+    }
+
     window.draw(vertices);
 }
 

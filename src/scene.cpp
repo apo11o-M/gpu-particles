@@ -63,7 +63,7 @@ void SceneManager::run() {
             + "\nFrame Time: " + std::to_string(elapsed.count()) + " s"
             + "\nParticles: " + std::to_string(scene->particles->currIndex));
         window.draw(fpsText);
-        
+
         window.display();
     }
 }

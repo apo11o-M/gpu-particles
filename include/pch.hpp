@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <thread>
 
 // common namespaces
 using std::cerr;
@@ -30,6 +31,7 @@ using std::cout;
 using std::endl;
 using std::string;
 using std::vector;
+using std::thread;
 
 // some math libraries
 #include "vec2.hpp"

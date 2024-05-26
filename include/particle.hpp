@@ -46,7 +46,7 @@ class Particles {
 
     // rendering stuff
     vector<uint8_t> r, g, b;
-    vector<sf::CircleShape> shapes;
+    sf::VertexArray vertices;
 
     // Cuda stuff, pointers to the device memory for particles
     Vec2<float> *d_positionIn, *d_velocityIn;
@@ -59,6 +59,7 @@ class Particles {
 
    private:
     void swapDeviceParticles();
+    void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
 
    public:
     Particles(unsigned int maxParticleCount, unsigned int borderLeft,
