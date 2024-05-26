@@ -1,4 +1,6 @@
 *.exe
+/.metadata
+*.nvprof
 
 # C/C++ build outputs
 .build/

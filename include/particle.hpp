@@ -3,6 +3,8 @@
 
 #include "pch.hpp"
 
+#define CELL_SIZE 15.0f
+
 // Using Structure of Array as the design choice for better memory access
 // pattern and cache locality
 //
@@ -27,6 +29,9 @@ class Particles {
     // All particles should be bounded within this border
     unsigned int borderLeft, borderRight, borderTop, borderBottom;
 
+    // the number of grids in spatial partioning
+    unsigned int cellXCount, cellYCount;
+
     // mouse events
     unsigned int mouseXPos, mouseYPos;
     BOOL spawn;
@@ -47,6 +52,7 @@ class Particles {
     Vec2<float> *d_positionIn, *d_velocityIn;
     Vec2<float> *d_positionOut, *d_velocityOut;
     BOOL* d_isActive;
+    int *d_cellIndices;
 
     unsigned int h_maxBlockCount;
     unsigned int h_maxThreadCount;

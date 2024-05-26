@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 
 if(NOT CMAKE_BUILD_TYPE)
+    message(STATUS "No build type selected, default to Release")
+    set(CMAKECXXFLAGS "${CMAKE_CXX_FLAGS} -pg")
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
@@ -16,7 +18,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     set(CMAKE_CXX_FLAGS_RELEASE "/Ox")
 else()
     # using GCC or Clang or something else
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -pg")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 endif()
 

@@ -1,4 +1,5 @@
 #include "scene.hpp"
+#include <chrono>
 
 SceneManager::SceneManager(string configFilename) : clock() {
     sf::ContextSettings settings;
@@ -26,7 +27,6 @@ SceneManager::SceneManager(string configFilename) : clock() {
     }
 
     scene = std::make_unique<Scene>(10000, 200, 800, 100, 700);
-    // scene = std::make_unique<Scene>(6, 200, 600, 100, 500);
 }
 
 SceneManager::~SceneManager() {}
@@ -53,10 +53,15 @@ void SceneManager::run() {
 
         // render onto the screen every frame. Here we also interpolates the
         // particle position
+        auto start = std::chrono::high_resolution_clock::now();
         scene->render(window, accumulator);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
 
         fps.update();
-        fpsText.setString("FPS: " + std::to_string(fps.getFPS()) + " , Particles: " + std::to_string(scene->particles->currIndex));
+        fpsText.setString("FPS: " + std::to_string(fps.getFPS()) 
+            + "\nFrame Time: " + std::to_string(elapsed.count()) + " s"
+            + "\nParticles: " + std::to_string(scene->particles->currIndex));
         window.draw(fpsText);
         
         window.display();
