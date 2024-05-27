@@ -1,5 +1,4 @@
 #include "particle.hpp"
-// #include "stdio.h"
 
 // Cuda stuff are up here
 // ============================================================================
@@ -27,35 +26,35 @@ __constant__ unsigned int d_cellXCount, d_cellYCount;
 
 // ============================================================================
 
-Particles::Particles(unsigned int maxParticles, unsigned int borderLeft,
-                     unsigned int borderRight, unsigned int borderTop,
-                     unsigned int borderBottom)
-    : r(maxParticles, 66),
-      g(maxParticles, 205),
-      b(maxParticles, 227),
+Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
+    : r(maxParticles, 255),
+      g(maxParticles, 255),
+      b(maxParticles, 255),
       position(maxParticles, Vec2<float>(0, 0)),
       velocity(maxParticles, Vec2<float>(0, 0)),
-      mass(maxParticles, 20),
-      radius(maxParticles, 3),
       isActive(maxParticles, false),
       vertices(sf::Triangles, maxParticles * 6) {
-    this->maxParticleCount = maxParticles;
     currIndex = 0;
 
-    restitution = 0.6f;
-    dampingFactor = 0.95f;
-    dampingFactorRate = 60.0f;
+    this->maxParticleCount = maxParticles;
+    radius = config.particleRadius;
+    mass = config.particleMass;
+    restitution = config.restitutionCoefficient;
+    dampingFactor = config.velocityDampingFactor;
+    dampingFactorRate = config.velocityDampingFactorRate;
 
-    this->borderLeft = borderLeft;
-    this->borderRight = borderRight;
-    this->borderTop = borderTop;
-    this->borderBottom = borderBottom;
+    this->borderLeft = config.borderLeft;
+    this->borderRight = config.borderRight;
+    this->borderTop = config.borderTop;
+    this->borderBottom = config.borderBottom;
 
-    this->cellXCount = (borderRight - borderLeft) / CELL_SIZE;
-    this->cellYCount = (borderBottom - borderTop) / CELL_SIZE;
+    cellSize = config.particleRadius * 2.5;
+    this->cellXCount = (borderRight - borderLeft) / cellSize;
+    this->cellYCount = (borderBottom - borderTop) / cellSize;
 
-    cout << "borders: " << borderLeft << ", " << borderRight << ", " << borderTop << ", " << borderBottom << endl;
-    cout << "grid: " << cellXCount << ", " << cellYCount << endl;
+    cout << "Maximum particle count: " << maxParticles << endl;
+    cout << "Borders: " << borderLeft << ", " << borderRight << ", " << borderTop << ", " << borderBottom << endl;
+    cout << "Grid Count: " << cellXCount << ", " << cellYCount << endl;
 
     for (size_t i = 0; i < maxParticles; i++) {
         r[i] = rand() % 255;
@@ -72,8 +71,8 @@ Particles::Particles(unsigned int maxParticles, unsigned int borderLeft,
 
     // initialize the constant memory in the device
     cudaAssert(cudaMemcpyToSymbol(d_maxParticleCount, &maxParticleCount, sizeof(unsigned int)));
-    cudaAssert(cudaMemcpyToSymbol(d_radius, radius.data(), sizeof(float)));
-    cudaAssert(cudaMemcpyToSymbol(d_mass, mass.data(), sizeof(float)));
+    cudaAssert(cudaMemcpyToSymbol(d_radius, &radius, sizeof(float)));
+    cudaAssert(cudaMemcpyToSymbol(d_mass, &mass, sizeof(float)));
     cudaAssert(cudaMemcpyToSymbol(d_restitution, &restitution, sizeof(float)));
     cudaAssert(cudaMemcpyToSymbol(d_dampingFactor, &dampingFactor, sizeof(float)));
     cudaAssert(cudaMemcpyToSymbol(d_dampingFactorRate, &dampingFactorRate, sizeof(float)));
@@ -135,16 +134,16 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
         if (!isActive[i]) continue;
 
         // interpolating the position to achieve smoother movement
-        float x = position[i].x - radius[i] + velocity[i].x * deltaTime;
-        float y = position[i].y - radius[i] + velocity[i].y * deltaTime;
+        float x = position[i].x - radius + velocity[i].x * deltaTime;
+        float y = position[i].y - radius + velocity[i].y * deltaTime;
 
-        vertices[i * 6 + 0].position = sf::Vector2f(x - radius[i], y - radius[i]);
-        vertices[i * 6 + 1].position = sf::Vector2f(x + radius[i], y - radius[i]);
-        vertices[i * 6 + 2].position = sf::Vector2f(x + radius[i], y + radius[i]);
+        vertices[i * 6 + 0].position = sf::Vector2f(x - radius, y - radius);
+        vertices[i * 6 + 1].position = sf::Vector2f(x + radius, y - radius);
+        vertices[i * 6 + 2].position = sf::Vector2f(x + radius, y + radius);
 
-        vertices[i * 6 + 3].position = sf::Vector2f(x - radius[i], y - radius[i]);
-        vertices[i * 6 + 4].position = sf::Vector2f(x + radius[i], y + radius[i]);
-        vertices[i * 6 + 5].position = sf::Vector2f(x - radius[i], y + radius[i]);
+        vertices[i * 6 + 3].position = sf::Vector2f(x - radius, y - radius);
+        vertices[i * 6 + 4].position = sf::Vector2f(x + radius, y + radius);
+        vertices[i * 6 + 5].position = sf::Vector2f(x - radius, y + radius);
 
         for (size_t j = 0; j < 6; j++) {
             vertices[i * 6 + j].color = sf::Color(r[i], g[i], b[i]);
@@ -154,6 +153,7 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
 
 void Particles::render(sf::RenderWindow &window, float deltaTime) {
     // 60 fps at 10000 particles
+    // const size_t threadCount = min(currIndex / 500, thread::hardware_concurrency());
     const size_t threadCount = thread::hardware_concurrency();
     const size_t chunkSize = maxParticleCount / threadCount;
 
@@ -182,17 +182,16 @@ void Particles::swapDeviceParticles() {
 }
 
 __device__ int getCellIndex(float xPos, float yPos, float cellSize, int gridXCount) {
-    int x = (int)((xPos - d_borderLeft) / CELL_SIZE);
-    int y = (int)((yPos - d_borderTop) / CELL_SIZE);
+    int x = (int)((xPos - d_borderLeft) / cellSize);
+    int y = (int)((yPos - d_borderTop) / cellSize);
     return y * gridXCount + x;
 }
 
-__global__ void assignParticlesToCells(Vec2<float> *pos, int *cellIndices) {
+__global__ void assignParticlesToCells(Vec2<float> *pos, int *cellIndices, float cellSize) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= d_maxParticleCount) return;
 
-    cellIndices[i] = getCellIndex(pos[i].x, pos[i].y, CELL_SIZE, d_cellXCount);
-    // printf("i: %d, cellIndices[i]: %d\n", i, cellIndices[i]);
+    cellIndices[i] = getCellIndex(pos[i].x, pos[i].y, cellSize, d_cellXCount);
 }
 
 __global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
@@ -213,6 +212,7 @@ __global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
                              const BOOL *d_isActive, const int *cellIndices, 
                              const float deltaTime, const float gravity, 
+                             const float cellSize, 
                              Vec2<float> *posOut, Vec2<float> *velOut) {
     // represents the sum of all posDelta and velDelta of one particle
     __shared__ float posDeltaX;
@@ -235,8 +235,8 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 
     int i = blockIdx.x;     // particle 1 index
     if (!d_isActive[i]) return;
-    int cellXPos = (int)((posIn[i].x - d_borderLeft) / CELL_SIZE);
-    int cellYPos = (int)((posIn[i].y - d_borderTop) / CELL_SIZE);
+    int cellXPos = (int)((posIn[i].x - d_borderLeft) / cellSize);
+    int cellYPos = (int)((posIn[i].y - d_borderTop) / cellSize);
 
     // check for collisions within cells and neighboring cells
     for (int offsetY = -1; offsetY <= 1; offsetY++) {
@@ -320,9 +320,9 @@ void Particles::update(float deltaTime, float gravity) {
     }
     cudaAssert(cudaMemcpyAsync(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice, stream));
     
-    assignParticlesToCells<<<blocks, threads, 0, stream>>>(d_positionIn, d_cellIndices);
+    assignParticlesToCells<<<blocks, threads, 0, stream>>>(d_positionIn, d_cellIndices, cellSize);
     updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, 
-        d_isActive, d_cellIndices, deltaTime, gravity, d_positionOut, d_velocityOut);
+        d_isActive, d_cellIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
     cudaAssert(cudaStreamSynchronize(stream));
 
     cudaAssert(cudaMemcpyAsync(position.data(), d_positionIn, maxParticleCount * sizeof(Vec2<float>), cudaMemcpyDeviceToHost, stream));

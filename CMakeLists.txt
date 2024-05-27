@@ -28,7 +28,6 @@ set(CUDA_SOURCES src/particle.cu)
 
 # load the necessary libraries
 find_package(SFML COMPONENTS system window graphics CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(gpu-particles ${CXX_SOURCES} ${CUDA_SOURCES})
 
@@ -37,4 +36,3 @@ target_include_directories(gpu-particles PRIVATE include)
 
 # link external libraries
 target_link_libraries(gpu-particles PRIVATE sfml-system sfml-network sfml-graphics sfml-window)
-target_link_libraries(gpu-particles PRIVATE nlohmann_json::nlohmann_json)

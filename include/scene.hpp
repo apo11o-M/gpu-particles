@@ -13,6 +13,7 @@ class SceneManager {
    private:
     sf::RenderWindow window;
     std::unique_ptr<Scene> scene;
+    SimulationConfig config;
     sf::Clock clock;
     FPS fps;
     sf::Text fpsText;
@@ -22,7 +23,7 @@ class SceneManager {
     /**
      * @brief Construct a new Scene Manager object
      */
-    SceneManager(string configFilename);
+    SceneManager(string config);
 
     /**
      * @brief Destroy the Scene Manager object
@@ -46,9 +47,7 @@ class Scene {
     /**
      * @brief Construct a new Scene object
      */
-    Scene(unsigned int maxParticleCount, unsigned int borderLeft,
-          unsigned int borderRight, unsigned int borderTop,
-          unsigned int borderBottom);
+    Scene(const SimulationConfig& config);
 
     /**
      * @brief Destroy the Scene object

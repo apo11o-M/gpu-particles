@@ -2,6 +2,6 @@
   "name": "cuda-particles",
   "description": "Simulate particle collisions with C++ and NVIDIA GPUs",
   "version": "1.0.0",
-  "dependencies": ["sfml", "nlohmann-json"],
+  "dependencies": ["sfml"],
   "builtin-baseline": "eb33d2f7583405fca184bcdf7fdd5828ec88ac05"
 }

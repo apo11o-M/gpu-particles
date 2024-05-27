@@ -2,16 +2,23 @@
 #include <chrono>
 
 SceneManager::SceneManager(string configFilename) : clock() {
+    ifstream file(configFilename);
+    if (file.is_open()) {
+        cout << "Config file opened successfully: " << configFilename << endl;
+    } else {
+        cout << "Unable to open config file: " << configFilename
+             << "Using default config: default-config.json" << endl;
+    }
+    json data = json::parse(file);
+    this->config = SimulationConfig::fromJson(data);
+    
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
-
-    window.create(sf::VideoMode(1000, 800), "gpu-particles: " + configFilename,
-                  sf::Style::Default, settings);
-    // window.setFramerateLimit(30);
+    window.create(sf::VideoMode(config.windowWidth, config.windowHeight), 
+                  "gpu-particles: " + config.name, sf::Style::Default, settings);
     window.setFramerateLimit(144);
     window.setVerticalSyncEnabled(true);
 
-    // TODO: parse the config file and create the scene
     fps = FPS();
     try {
         if (!font.loadFromFile("assets/arial.ttf")) {
@@ -26,7 +33,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
         exit(1);
     }
 
-    scene = std::make_unique<Scene>(10000, 200, 800, 100, 700);
+    scene = std::make_unique<Scene>(config);
 }
 
 SceneManager::~SceneManager() {}
@@ -68,19 +75,15 @@ void SceneManager::run() {
     }
 }
 
-Scene::Scene(unsigned int maxParticleCount, unsigned int borderLeft,
-             unsigned int borderRight, unsigned int borderTop,
-             unsigned int borderBottom) {
-    this->maxParticleCount = maxParticleCount;
-    this->borderLeft = borderLeft;
-    this->borderRight = borderRight;
-    this->borderTop = borderTop;
-    this->borderBottom = borderBottom;
-    // gravity = 10000;
-    gravity = 200;
+Scene::Scene(const SimulationConfig& config) {
+    this->maxParticleCount = config.maxParticleCount;
+    this->borderLeft = config.borderLeft;
+    this->borderRight = config.borderRight;
+    this->borderTop = config.borderTop;
+    this->borderBottom = config.borderBottom;
+    gravity = config.gravity;
 
-    particles = std::make_unique<Particles>(
-        maxParticleCount, borderLeft, borderRight, borderTop, borderBottom);
+    particles = std::make_unique<Particles>(config, maxParticleCount);
 }
 
 Scene::~Scene() {}

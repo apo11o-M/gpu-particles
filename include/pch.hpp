@@ -6,7 +6,7 @@
 #include <SFML/Window.hpp>
 
 // json parsing
-#include <nlohmann/json.hpp>
+#include "json.hpp"
 
 // CUDA stuff
 #include <cuda.h>
@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -29,9 +30,11 @@
 using std::cerr;
 using std::cout;
 using std::endl;
+using std::ifstream;
 using std::string;
 using std::vector;
 using std::thread;
+using json = nlohmann::json;
 
 // some math libraries
 #include "vec2.hpp"
@@ -48,5 +51,45 @@ using std::thread;
 #ifndef BOOL
 #define BOOL int
 #endif
+
+struct SimulationConfig {
+    string name = "Rectangle Particle Demo";
+    unsigned int windowWidth = 1000;
+    unsigned int windowHeight = 800;
+    unsigned int borderLeft = 200;
+    unsigned int borderRight = 800;
+    unsigned int borderTop = 100;
+    unsigned int borderBottom = 700;
+    string backgroundColor = "0x000000ff";
+    
+    unsigned int maxParticleCount = 1000;
+    float particleRadius = 3.0f;
+    float particleMass = 20.0f;
+
+    float velocityDampingFactor = 0.95f;
+    float velocityDampingFactorRate = 60.0f;
+    float restitutionCoefficient = 0.6f;
+    float gravity = 200.0f;
+
+    static SimulationConfig fromJson(const json& json) {
+        SimulationConfig config;
+        if (json.contains("name")) config.name = json["name"];
+        if (json.contains("windowWidth")) config.windowWidth = json["windowWidth"];
+        if (json.contains("windowHeight")) config.windowHeight = json["windowHeight"];
+        if (json.contains("borderLeft")) config.borderLeft = json["borderLeft"];
+        if (json.contains("borderRight")) config.borderRight = json["borderRight"];
+        if (json.contains("borderTop")) config.borderTop = json["borderTop"];
+        if (json.contains("borderBottom")) config.borderBottom = json["borderBottom"];
+        if (json.contains("backgroundColor")) config.backgroundColor = json["backgroundColor"];
+        if (json.contains("maxParticleCount")) config.maxParticleCount = json["maxParticleCount"];
+        if (json.contains("particleRadius")) config.particleRadius = json["particleRadius"];
+        if (json.contains("particleMass")) config.particleMass = json["particleMass"];
+        if (json.contains("velocityDampingFactor")) config.velocityDampingFactor = json["velocityDampingFactor"];
+        if (json.contains("velocityDampingFactorRate")) config.velocityDampingFactorRate = json["velocityDampingFactorRate"];
+        if (json.contains("restitutionCoefficient")) config.restitutionCoefficient = json["restitutionCoefficient"];
+        if (json.contains("gravity")) config.gravity = json["gravity"];
+        return config;
+    }
+};
 
 #endif  // PCH_HPP

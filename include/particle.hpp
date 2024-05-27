@@ -3,8 +3,6 @@
 
 #include "pch.hpp"
 
-#define CELL_SIZE 15.0f
-
 // Using Structure of Array as the design choice for better memory access
 // pattern and cache locality
 //
@@ -37,11 +35,10 @@ class Particles {
     BOOL spawn;
 
     // physics stuff
+    float cellSize;
     vector<Vec2<float>> velocity, position;
-    vector<float> radius, mass;
-    float dampingFactor;
-    float dampingFactorRate;
-    float restitution;
+    float radius, mass;
+    float dampingFactor, dampingFactorRate, restitution;
     vector<BOOL> isActive;
 
     // rendering stuff
@@ -62,9 +59,7 @@ class Particles {
     void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
 
    public:
-    Particles(unsigned int maxParticleCount, unsigned int borderLeft,
-              unsigned int borderRight, unsigned int borderTop,
-              unsigned int borderBottom);
+    Particles(const SimulationConfig& config, unsigned int maxParticles);
 
     ~Particles();
 
