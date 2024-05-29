@@ -83,7 +83,7 @@ Scene::Scene(const SimulationConfig& config) {
     this->borderBottom = config.borderBottom;
     gravity = config.gravity;
 
-    particles = std::make_unique<Particles>(config, maxParticleCount);
+    particles = std::make_unique<Particles>(config);
 }
 
 Scene::~Scene() {}

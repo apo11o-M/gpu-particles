@@ -1,5 +1,9 @@
 #include "particle.hpp"
 
+// a circle can have at most 6 contacts with other circles with the same radius
+// , we increase the maximum number of constraints to 10 just in case
+#define MAX_CONSTRAINTS 10
+
 // Cuda stuff are up here
 // ============================================================================
 
@@ -26,17 +30,18 @@ __constant__ unsigned int d_cellXCount, d_cellYCount;
 
 // ============================================================================
 
-Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
-    : r(maxParticles, 255),
-      g(maxParticles, 255),
-      b(maxParticles, 255),
-      position(maxParticles, Vec2<float>(0, 0)),
-      velocity(maxParticles, Vec2<float>(0, 0)),
-      isActive(maxParticles, false),
-      vertices(sf::Triangles, maxParticles * 6) {
+Particles::Particles(const SimulationConfig& config)
+    : r(config.maxParticleCount, 255),
+      g(config.maxParticleCount, 255),
+      b(config.maxParticleCount, 255),
+      position(config.maxParticleCount, Vec2<float>(0, 0)),
+      velocity(config.maxParticleCount, Vec2<float>(0, 0)),
+      isActive(config.maxParticleCount, FALSE),
+      vertices(sf::Triangles, config.maxParticleCount * 6),
+      shapes(config.maxParticleCount) {
     currIndex = 0;
 
-    this->maxParticleCount = maxParticles;
+    this->maxParticleCount = config.maxParticleCount;
     radius = config.particleRadius;
     mass = config.particleMass;
     restitution = config.restitutionCoefficient;
@@ -52,11 +57,11 @@ Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
     this->cellXCount = (borderRight - borderLeft) / cellSize;
     this->cellYCount = (borderBottom - borderTop) / cellSize;
 
-    cout << "Maximum particle count: " << maxParticles << endl;
+    cout << "Maximum particle count: " << config.maxParticleCount << endl;
     cout << "Borders: " << borderLeft << ", " << borderRight << ", " << borderTop << ", " << borderBottom << endl;
     cout << "Grid Count: " << cellXCount << ", " << cellYCount << endl;
 
-    for (size_t i = 0; i < maxParticles; i++) {
+    for (size_t i = 0; i < config.maxParticleCount; i++) {
         r[i] = rand() % 255;
         g[i] = rand() % 255;
         b[i] = rand() % 255;
@@ -84,19 +89,19 @@ Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
     cudaAssert(cudaMemcpyToSymbol(d_cellYCount, &cellYCount, sizeof(unsigned int)));
 
     // allocate memory for the particles in the device
-    cudaAssert(cudaMalloc(&d_positionIn, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_velocityIn, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_positionOut, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_velocityOut, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMemcpy(d_positionIn, position.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_velocityIn, velocity.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_positionOut, position.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_velocityOut, velocity.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMalloc(&d_positionIn, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_velocityIn, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_positionOut, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_velocityOut, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMemcpy(d_positionIn, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_velocityIn, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_positionOut, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_velocityOut, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
 
-    cudaAssert(cudaMalloc(&d_isActive, maxParticles * sizeof(BOOL)));
-    cudaAssert(cudaMemcpy(d_isActive, isActive.data(), maxParticles * sizeof(BOOL), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMalloc(&d_isActive, maxParticleCount * sizeof(BOOL)));
+    cudaAssert(cudaMemcpy(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice));
 
-    cudaAssert(cudaMalloc(&d_cellIndices, maxParticles * sizeof(int)));
+    cudaAssert(cudaMalloc(&d_cellIndices, maxParticleCount * sizeof(int)));
 
     cudaDeviceProp properties;
     cudaAssert(cudaGetDeviceProperties(&properties, 0));
@@ -154,22 +159,34 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
 void Particles::render(sf::RenderWindow &window, float deltaTime) {
     // 60 fps at 10000 particles
     // const size_t threadCount = min(currIndex / 500, thread::hardware_concurrency());
-    const size_t threadCount = thread::hardware_concurrency();
-    const size_t chunkSize = maxParticleCount / threadCount;
+    // const size_t threadCount = thread::hardware_concurrency();
+    // const size_t threadCount = 1;
+    // const size_t chunkSize = maxParticleCount / threadCount;
 
-    vector<thread> threads;
-    for (size_t t = 0; t < threadCount; t++) {
-        size_t startIndex = t * chunkSize;
-        size_t endIndex = (t == threadCount - 1) ? maxParticleCount : startIndex + chunkSize;
+    // vector<thread> threads;
+    // for (size_t t = 0; t < threadCount; t++) {
+    //     size_t startIndex = t * chunkSize;
+    //     size_t endIndex = (t == threadCount - 1) ? maxParticleCount : startIndex + chunkSize;
 
-        threads.emplace_back(&Particles::updateVertices, this, startIndex, endIndex, deltaTime);
+    //     threads.emplace_back(&Particles::updateVertices, this, startIndex, endIndex, deltaTime);
+    // }
+
+    // for (thread &thread : threads) {
+    //     thread.join();
+    // }
+
+    // window.draw(vertices);
+    for (size_t i = 0; i < maxParticleCount; i++) {
+        if (!isActive[i]) continue;
+
+        // interpolating the position to achieve smoother movement
+        shapes[i].setPosition(
+            position[i].x - radius + velocity[i].x * deltaTime,
+            position[i].y - radius + velocity[i].y * deltaTime);
+        shapes[i].setRadius(radius);
+        shapes[i].setFillColor(sf::Color(r[i], g[i], b[i]));
+        window.draw(shapes[i]);
     }
-
-    for (thread &thread : threads) {
-        thread.join();
-    }
-
-    window.draw(vertices);
 }
 
 void Particles::swapDeviceParticles() {
@@ -197,8 +214,8 @@ __global__ void assignParticlesToCells(Vec2<float> *pos, int *cellIndices, float
 __global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
                                     Vec2<float> pos, unsigned int currIndex) {
     if (threadIdx.x == 0) {
-        posIn[currIndex].x = pos.x;
-        posIn[currIndex].y = pos.y;
+        posIn[currIndex].x = max(d_borderLeft, min((unsigned int)pos.x, d_borderRight));
+        posIn[currIndex].y = max(d_borderTop, min((unsigned int)pos.y, d_borderBottom));
         velIn[currIndex].x = -500;
         velIn[currIndex].y = 0;
     }
@@ -233,7 +250,7 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     Vec2<float> posDelta = Vec2<float>(0.0f, 0.0f);
     Vec2<float> velDelta = Vec2<float>(0.0f, 0.0f);
 
-    int i = blockIdx.x;     // particle 1 index
+    int i = blockIdx.x;
     if (!d_isActive[i]) return;
     int cellXPos = (int)((posIn[i].x - d_borderLeft) / cellSize);
     int cellYPos = (int)((posIn[i].y - d_borderTop) / cellSize);
@@ -304,12 +321,209 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     }
 }
 
+// Using position based dynamics approach
+// 1) initialize the predicted position and velocity for the particles
+// 2) update velocities based on external forces such as gravity
+//    could also implment velocity damping or friction, etc
+// 3) calculate the new positions using the current velocities
+// 4) generate constraings for any collisions that may occur
+// 5) loop
+//    adjust the positions to satisfy both the initial and collision 
+//    constraints using a gauss-seidel type iteration
+// 6) update the final position and velocities based on the corrected 
+//    positions
+
+__global__ void applyForces(const Vec2<float> *posIn, const Vec2<float> *velIn, 
+                            const float deltaTime, const float gravity, 
+                            const BOOL *d_isActive, Vec2<float> *velOut) {
+    int i = blockIdx.x;
+    if (!d_isActive[i]) return;
+
+    velOut[i] = velIn[i];
+    velOut[i].y += gravity * deltaTime;
+    velOut[i] *= powf(d_dampingFactor, d_dampingFactorRate * deltaTime);
+    
+    // if we collide with the border we also need to have the particles "bounce"
+    // off the border
+    if (posIn[i].x - d_radius < d_borderLeft) {
+        velOut[i].x *= -1 * d_restitution;
+    }
+    if (posIn[i].x + d_radius > d_borderRight) {
+        velOut[i].x *= -1 * d_restitution;
+    }
+    if (posIn[i].y - d_radius < d_borderTop) {
+        velOut[i].y *= -1 * d_restitution;
+    }
+    if (posIn[i].y + d_radius > d_borderBottom) {
+        velOut[i].y *= -1 * d_restitution;
+    }
+}
+
+__global__ void predictPositions(const Vec2<float> *posIn, const Vec2<float> *velIn, 
+                                 const BOOL *d_isActive, const float deltaTime, 
+                                 Vec2<float> *posOut) {
+    int i = blockIdx.x;
+    if (!d_isActive[i]) return;
+
+    for (int j = 0; j < d_maxParticleCount; j++) {
+        if (i >= j || !d_isActive[j]) continue;
+        
+    }
+    posOut[i] = posIn[i] + velIn[i] * deltaTime;
+}
+
+__global__ void collisionConstraints(const Vec2<float> *posIn,
+                                const BOOL *d_isActive, const int maxConstraints, 
+                                int solverIterations, Vec2<float> *posOut) {
+    __shared__ int constraintCount;
+    __shared__ Constraint constraints[MAX_CONSTRAINTS];
+
+    if (threadIdx.x == 0) {
+        constraintCount = 0;
+    }
+    __syncthreads();
+
+    int i = blockIdx.x;
+    for (int j = 0; j < d_maxParticleCount; j++) {
+        if (i >= j || !d_isActive[i] || !d_isActive[j]) continue;
+
+        Vec2<float> delta = posIn[i] - posIn[j];
+        if (delta.lengthSq() == 0
+            || delta.lengthSq() > powf(d_radius + d_radius, 2)) continue;
+        
+        int index = atomicAdd(&constraintCount, 1);
+        if (index >= maxConstraints) break;
+        constraints[index].particleA = i;
+        constraints[index].particleB = j;
+        constraints[index].isBorderConstraint = NOT_BORDER;
+    }
+
+    // check whether this particle is colliding with a border
+    if (posIn[i].x - d_radius < d_borderLeft) {
+        int index = atomicAdd(&constraintCount, 1);
+        if (index < maxConstraints) {
+            constraints[index].particleA = i;
+            constraints[index].particleB = -1;
+            constraints[index].isBorderConstraint = LEFT_BORDER;
+        }
+    }
+    if (posIn[i].x + d_radius > d_borderRight) {
+        int index = atomicAdd(&constraintCount, 1);
+        if (index < maxConstraints) {
+            constraints[index].particleA = i;
+            constraints[index].particleB = -1;
+            constraints[index].isBorderConstraint = RIGHT_BORDER;
+        }
+    }
+    if (posIn[i].y - d_radius < d_borderTop) {
+        int index = atomicAdd(&constraintCount, 1);
+        if (index < maxConstraints) {
+            constraints[index].particleA = i;
+            constraints[index].particleB = -1;
+            constraints[index].isBorderConstraint = TOP_BORDER;
+        }
+    }
+    if (posIn[i].y + d_radius > d_borderBottom) {
+        int index = atomicAdd(&constraintCount, 1);
+        if (index < maxConstraints) {
+            constraints[index].particleA = i;
+            constraints[index].particleB = -1;
+            constraints[index].isBorderConstraint = BOTTOM_BORDER;
+        }
+    }
+
+    for (int index = 0; index < constraintCount; index++) {
+        if (constraints[index].isBorderConstraint == NOT_BORDER) continue;
+
+        int particleA = constraints[index].particleA;
+        Vec2<float> correction = Vec2<float>(0.0f, 0.0f);
+        switch (constraints[index].isBorderConstraint) {
+            case LEFT_BORDER:
+                correction.x = d_borderLeft + d_radius - posOut[particleA].x;
+                break;
+            case RIGHT_BORDER:
+                correction.x = d_borderRight - d_radius - posOut[particleA].x;
+                break;
+            case TOP_BORDER:
+                correction.y = d_borderTop + d_radius - posOut[particleA].y;
+                break;
+            case BOTTOM_BORDER:
+                correction.y = d_borderBottom - d_radius - posOut[particleA].y;
+                break;
+            default:
+                break;
+        }
+        posOut[particleA] += correction;
+    }
+    for (int index = 0; index < constraintCount; index++) {
+        if (constraints[index].isBorderConstraint != NOT_BORDER) continue;
+
+        int particleA = constraints[index].particleA;
+        int particleB = constraints[index].particleB;
+
+        Vec2<float> delta = posOut[particleA] - posOut[particleB];
+        float dist = delta.length();
+        if (dist < 2 * d_radius) {
+            float overlap = 2 * d_radius - dist;
+            Vec2<float> deltaNorm = delta.normalized();
+            // TODO: when pushing the particles far apart, we should also take 
+            // into account whether we would push the particles out of the 
+            // border. If that is the case then we need to adjust the correction
+            Vec2<float> correction = deltaNorm * overlap / 2.0f;
+            BOOL doCorrectionA = TRUE, doCorrectionB = TRUE;
+            if ((posOut[particleA] + correction).x - d_radius < d_borderLeft) {
+                posOut[particleA].x = d_borderLeft + d_radius;
+                doCorrectionA = FALSE;
+            }
+            if ((posOut[particleA] + correction).x + d_radius > d_borderRight) {
+                posOut[particleA].x = d_borderRight - d_radius;
+                doCorrectionA = FALSE;
+            }
+            if ((posOut[particleA] + correction).y - d_radius < d_borderTop) {
+                posOut[particleA].y = d_borderTop + d_radius;
+                doCorrectionA = FALSE;
+            }
+            if ((posOut[particleA] + correction).y + d_radius > d_borderBottom) {
+                posOut[particleA].y = d_borderBottom - d_radius;
+                doCorrectionA = FALSE;
+            }
+            if (doCorrectionA) {
+                posOut[particleA] += correction;
+            }
+
+            if ((posOut[particleB] - correction).x - d_radius < d_borderLeft) {
+                posOut[particleB].x = d_borderLeft + d_radius;
+                doCorrectionB = FALSE;
+            }
+            if ((posOut[particleB] - correction).x + d_radius > d_borderRight) {
+                posOut[particleB].x = d_borderRight - d_radius;
+                doCorrectionB = FALSE;
+            }
+            if ((posOut[particleB] - correction).y - d_radius < d_borderTop) {
+                posOut[particleB].y = d_borderTop + d_radius;
+                doCorrectionB = FALSE;
+            }
+            if ((posOut[particleB] - correction).y + d_radius > d_borderBottom) {
+                posOut[particleB].y = d_borderBottom - d_radius;
+                doCorrectionB = FALSE;
+            }
+            if (doCorrectionB) {
+                posOut[particleB] -= correction;
+            }
+            // posOut[particleA] += correction;
+            // posOut[particleB] -= correction;
+        }
+    }
+}
+
 void Particles::update(float deltaTime, float gravity) {
     cudaStream_t stream;
     cudaAssert(cudaStreamCreate(&stream));
 
+    // dim3 blocks = maxParticleCount;
+    // dim3 threads = min(maxParticleCount, h_maxThreadCount);
     dim3 blocks = maxParticleCount;
-    dim3 threads = min(maxParticleCount, h_maxThreadCount);
+    dim3 threads = 1;
 
     if (spawn && currIndex < maxParticleCount) {
         spawnParticleKernel<<<1, 1, 0, stream>>>(d_positionIn, d_velocityIn, 
@@ -320,13 +534,23 @@ void Particles::update(float deltaTime, float gravity) {
     }
     cudaAssert(cudaMemcpyAsync(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice, stream));
     
-    assignParticlesToCells<<<blocks, threads, 0, stream>>>(d_positionIn, d_cellIndices, cellSize);
-    updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, 
-        d_isActive, d_cellIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
+    // assignParticlesToCells<<<blocks, threads, 0, stream>>>(d_positionIn, d_cellIndices, cellSize);
+    // updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, 
+    //     d_isActive, d_cellIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
+    
+    applyForces<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, deltaTime, gravity, d_isActive, d_velocityOut);
     cudaAssert(cudaStreamSynchronize(stream));
 
+    predictPositions<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityOut, d_isActive, deltaTime, d_positionOut);
+    cudaAssert(cudaStreamSynchronize(stream));
+    
+    for (int iter = 0; iter < 5; iter++) {
+        collisionConstraints<<<blocks, threads, 0, stream>>>(d_positionOut, d_isActive, maxParticleCount * maxParticleCount, 5, d_positionOut);
+        cudaAssert(cudaStreamSynchronize(stream));
+    }
+
+    // copy the calculated positions back to our host memory for rendering
     cudaAssert(cudaMemcpyAsync(position.data(), d_positionIn, maxParticleCount * sizeof(Vec2<float>), cudaMemcpyDeviceToHost, stream));
     swapDeviceParticles();
-
     cudaAssert(cudaStreamDestroy(stream));
 }

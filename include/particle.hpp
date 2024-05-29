@@ -3,6 +3,19 @@
 
 #include "pch.hpp"
 
+typedef enum {
+    NOT_BORDER = 0,
+    TOP_BORDER = 1,
+    BOTTOM_BORDER = 2,
+    LEFT_BORDER = 3,
+    RIGHT_BORDER = 4,
+} BorderCollisionType;
+
+struct Constraint {
+    int particleA, particleB;
+    BorderCollisionType isBorderConstraint;
+};
+
 // Using Structure of Array as the design choice for better memory access
 // pattern and cache locality
 //
@@ -54,12 +67,14 @@ class Particles {
     unsigned int h_maxBlockCount;
     unsigned int h_maxThreadCount;
 
+    vector<sf::CircleShape> shapes;
+
    private:
     void swapDeviceParticles();
     void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
 
    public:
-    Particles(const SimulationConfig& config, unsigned int maxParticles);
+    Particles(const SimulationConfig& config);
 
     ~Particles();
 
