@@ -14,6 +14,11 @@
 #include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
 
+// CUDA thrust library stuff
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <thrust/sort.h> 
+
 // C++ standard libraries
 #include <algorithm>
 #include <cmath>

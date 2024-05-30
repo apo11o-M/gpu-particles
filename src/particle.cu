@@ -35,7 +35,9 @@ Particles::Particles(const SimulationConfig& config)
       position(config.maxParticleCount, Vec2<float>(0, 0)),
       velocity(config.maxParticleCount, Vec2<float>(0, 0)),
       isActive(config.maxParticleCount, false),
-      vertices(sf::Triangles, config.maxParticleCount * 6) {
+      vertices(sf::Triangles, config.maxParticleCount * 6),
+      renderingThreads(thread::hardware_concurrency()),
+      chunkSize(config.maxParticleCount / renderingThreads) {
     currIndex = 0;
 
     this->maxParticleCount = config.maxParticleCount;
@@ -185,10 +187,8 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
 }
 
 void Particles::render(sf::RenderWindow &window, float deltaTime) {
-    // 60 fps at 10000 particles
-    // const size_t threadCount = min(currIndex / 500, thread::hardware_concurrency());
-    const size_t threadCount = thread::hardware_concurrency();
-    const size_t chunkSize = maxParticleCount / threadCount;
+    // we only create as many threads as needed to render the particles
+    const size_t threadCount = min(renderingThreads, currIndex / chunkSize + 1);
 
     vector<thread> threads;
     for (size_t t = 0; t < threadCount; t++) {
