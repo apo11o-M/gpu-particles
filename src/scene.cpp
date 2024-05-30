@@ -83,7 +83,7 @@ Scene::Scene(const SimulationConfig& config) {
     this->borderBottom = config.borderBottom;
     gravity = config.gravity;
 
-    particles = std::make_unique<Particles>(config, maxParticleCount);
+    particles = std::make_unique<Particles>(config);
 }
 
 Scene::~Scene() {}
@@ -101,7 +101,6 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                 }
                 break;
             case (sf::Event::MouseButtonPressed):
-
                 if (event.mouseButton.button == sf::Mouse::Left) {
                     unsigned int x =
                         std::clamp((unsigned int)event.mouseButton.x,
@@ -109,8 +108,7 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                     unsigned int y =
                         std::clamp((unsigned int)event.mouseButton.y, borderTop,
                                    borderBottom);
-                    particles->makeActive(1, x, y, 1);
-                    particles->makeActive(1, x, y, -1);
+                    particles->spawnParticles(x, y, TRUE);
                 } else if (event.mouseButton.button == sf::Mouse::Right) {
                     unsigned int x =
                         std::clamp((unsigned int)event.mouseButton.x,
@@ -118,9 +116,29 @@ void Scene::pollEvent(sf::RenderWindow& window) {
                     unsigned int y =
                         std::clamp((unsigned int)event.mouseButton.y, borderTop,
                                    borderBottom);
-                    particles->makeActive(1, x, y, 1);
-                    particles->makeActive(1, x, y, -1);
+                    particles->succParticles(x, y, TRUE);
+                } else if (event.mouseButton.button == sf::Mouse::Middle) {
+                    unsigned int x =
+                        std::clamp((unsigned int)event.mouseButton.x,
+                                   borderLeft, borderRight);
+                    unsigned int y =
+                        std::clamp((unsigned int)event.mouseButton.y, borderTop,
+                                   borderBottom);
+                    particles->repelParticles(x, y, TRUE);
                 }
+                break;
+            case (sf::Event::MouseButtonReleased):
+                if (event.mouseButton.button == sf::Mouse::Left) {
+                    particles->spawnParticles(0, 0, FALSE);
+                } else if (event.mouseButton.button == sf::Mouse::Right) {
+                    particles->succParticles(0, 0, FALSE);
+                } else if (event.mouseButton.button == sf::Mouse::Middle) {
+                    particles->repelParticles(0, 0, FALSE);
+                }
+                break;
+            case (sf::Event::MouseMoved):
+                particles->mouseXPos = event.mouseMove.x;
+                particles->mouseYPos = event.mouseMove.y;
                 break;
             default:
                 break;

@@ -1,0 +1,21 @@
+{
+  "name": "small container demo",
+
+  "windowWidth": 1000,
+  "windowHeight": 800,
+
+  "borderLeft": 615.0,
+  "borderRight": 700.0,
+  "borderTop": 100.0,
+  "borderBottom": 600.0,
+  "backgroundColor": "0x000000ff",
+  "maxParticleCount": 25,
+
+  "particleRadius": 10.0,
+  "particleMass": 20.0,
+
+  "velocityDampingFactor": 0.95,
+  "velocityDampingFactorRate": 60.0,
+  "restitutionCoefficient": 0.6,
+  "gravity": 200.0
+}

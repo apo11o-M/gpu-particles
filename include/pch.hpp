@@ -71,6 +71,11 @@ struct SimulationConfig {
     float restitutionCoefficient = 0.6f;
     float gravity = 200.0f;
 
+    float maxSuctionRange = 50.0f;
+    float suctionForce = 50.0f;
+    float maxRepelRange = 50.0f;
+    float repelForce = 1000.0f;
+
     static SimulationConfig fromJson(const json& json) {
         SimulationConfig config;
         if (json.contains("name")) config.name = json["name"];
@@ -88,6 +93,10 @@ struct SimulationConfig {
         if (json.contains("velocityDampingFactorRate")) config.velocityDampingFactorRate = json["velocityDampingFactorRate"];
         if (json.contains("restitutionCoefficient")) config.restitutionCoefficient = json["restitutionCoefficient"];
         if (json.contains("gravity")) config.gravity = json["gravity"];
+        if (json.contains("maxSuctionRange")) config.maxSuctionRange = json["maxSuctionRange"];
+        if (json.contains("suctionForce")) config.suctionForce = json["suctionForce"];
+        if (json.contains("maxRepelRange")) config.maxRepelRange = json["maxRepelRange"];
+        if (json.contains("repelForce")) config.repelForce = json["repelForce"];
         return config;
     }
 };

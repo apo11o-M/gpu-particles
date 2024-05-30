@@ -32,7 +32,7 @@ class Particles {
 
     // mouse events
     unsigned int mouseXPos, mouseYPos;
-    BOOL spawn;
+    BOOL spawn, succ, repel;
 
     // physics stuff
     float cellSize;
@@ -40,6 +40,8 @@ class Particles {
     float radius, mass;
     float dampingFactor, dampingFactorRate, restitution;
     vector<BOOL> isActive;
+    float maxSuctionRange, suctionForce;
+    float maxRepelRange, repelForce;
 
     // rendering stuff
     vector<uint8_t> r, g, b;
@@ -59,24 +61,15 @@ class Particles {
     void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
 
    public:
-    Particles(const SimulationConfig& config, unsigned int maxParticles);
+    Particles(const SimulationConfig& config);
 
     ~Particles();
 
-    /**
-     * @brief Make the specified particles active
-     *
-     * @param count How many particles to be active
-     */
-    void makeActive(unsigned int count, unsigned int x, unsigned int y,
-                    float direction);
+    void spawnParticles(unsigned int x, unsigned int y, BOOL shouldSpawn);
 
-    /**
-     * @brief Make the specified particles inactive
-     *
-     * @param count How many particles to be inactive
-     */
-    void makeInactive(unsigned int count);
+    void succParticles(unsigned int x, unsigned int y, BOOL shouldSucc);
+
+    void repelParticles(unsigned int x, unsigned int y, BOOL shouldRepel);
 
     void update(float deltaTime, float gravity);
 

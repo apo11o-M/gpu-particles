@@ -23,25 +23,31 @@ __constant__ float d_dampingFactor;
 __constant__ float d_dampingFactorRate;
 __constant__ unsigned int d_borderLeft, d_borderRight, d_borderTop, d_borderBottom;
 __constant__ unsigned int d_cellXCount, d_cellYCount;
+__constant__ float d_maxSuctionRange, d_suctionForce;
+__constant__ float d_maxRepelRange, d_repelForce;
 
 // ============================================================================
 
-Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
-    : r(maxParticles, 255),
-      g(maxParticles, 255),
-      b(maxParticles, 255),
-      position(maxParticles, Vec2<float>(0, 0)),
-      velocity(maxParticles, Vec2<float>(0, 0)),
-      isActive(maxParticles, false),
-      vertices(sf::Triangles, maxParticles * 6) {
+Particles::Particles(const SimulationConfig& config)
+    : r(config.maxParticleCount, 255),
+      g(config.maxParticleCount, 255),
+      b(config.maxParticleCount, 255),
+      position(config.maxParticleCount, Vec2<float>(0, 0)),
+      velocity(config.maxParticleCount, Vec2<float>(0, 0)),
+      isActive(config.maxParticleCount, false),
+      vertices(sf::Triangles, config.maxParticleCount * 6) {
     currIndex = 0;
 
-    this->maxParticleCount = maxParticles;
+    this->maxParticleCount = config.maxParticleCount;
     radius = config.particleRadius;
     mass = config.particleMass;
     restitution = config.restitutionCoefficient;
     dampingFactor = config.velocityDampingFactor;
     dampingFactorRate = config.velocityDampingFactorRate;
+    maxSuctionRange = config.maxSuctionRange;
+    suctionForce = config.suctionForce;
+    maxRepelRange = config.maxRepelRange;
+    repelForce = config.repelForce;
 
     this->borderLeft = config.borderLeft;
     this->borderRight = config.borderRight;
@@ -52,11 +58,11 @@ Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
     this->cellXCount = (borderRight - borderLeft) / cellSize;
     this->cellYCount = (borderBottom - borderTop) / cellSize;
 
-    cout << "Maximum particle count: " << maxParticles << endl;
+    cout << "Maximum particle count: " << maxParticleCount << endl;
     cout << "Borders: " << borderLeft << ", " << borderRight << ", " << borderTop << ", " << borderBottom << endl;
-    cout << "Grid Count: " << cellXCount << ", " << cellYCount << endl;
+    cout << "Grid Count, X: " << cellXCount << ", Y: " << cellYCount << endl;
 
-    for (size_t i = 0; i < maxParticles; i++) {
+    for (size_t i = 0; i < maxParticleCount; i++) {
         r[i] = rand() % 255;
         g[i] = rand() % 255;
         b[i] = rand() % 255;
@@ -65,6 +71,8 @@ Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
     mouseXPos = 0;
     mouseYPos = 0;
     spawn = FALSE;
+    succ = FALSE;
+    repel = FALSE;
 
     // ========================================================================
     // Cuda stuff are down here
@@ -76,6 +84,10 @@ Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
     cudaAssert(cudaMemcpyToSymbol(d_restitution, &restitution, sizeof(float)));
     cudaAssert(cudaMemcpyToSymbol(d_dampingFactor, &dampingFactor, sizeof(float)));
     cudaAssert(cudaMemcpyToSymbol(d_dampingFactorRate, &dampingFactorRate, sizeof(float)));
+    cudaAssert(cudaMemcpyToSymbol(d_maxSuctionRange, &maxSuctionRange, sizeof(float)));
+    cudaAssert(cudaMemcpyToSymbol(d_suctionForce, &suctionForce, sizeof(float)));
+    cudaAssert(cudaMemcpyToSymbol(d_maxRepelRange, &maxRepelRange, sizeof(float)));
+    cudaAssert(cudaMemcpyToSymbol(d_repelForce, &repelForce, sizeof(float)));
     cudaAssert(cudaMemcpyToSymbol(d_borderLeft, &borderLeft, sizeof(unsigned int)));
     cudaAssert(cudaMemcpyToSymbol(d_borderRight, &borderRight, sizeof(unsigned int)));
     cudaAssert(cudaMemcpyToSymbol(d_borderTop, &borderTop, sizeof(unsigned int)));
@@ -84,19 +96,19 @@ Particles::Particles(const SimulationConfig& config, unsigned int maxParticles)
     cudaAssert(cudaMemcpyToSymbol(d_cellYCount, &cellYCount, sizeof(unsigned int)));
 
     // allocate memory for the particles in the device
-    cudaAssert(cudaMalloc(&d_positionIn, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_velocityIn, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_positionOut, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_velocityOut, maxParticles * sizeof(Vec2<float>)));
-    cudaAssert(cudaMemcpy(d_positionIn, position.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_velocityIn, velocity.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_positionOut, position.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_velocityOut, velocity.data(), maxParticles * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMalloc(&d_positionIn, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_velocityIn, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_positionOut, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_velocityOut, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMemcpy(d_positionIn, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_velocityIn, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_positionOut, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_velocityOut, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
 
-    cudaAssert(cudaMalloc(&d_isActive, maxParticles * sizeof(BOOL)));
-    cudaAssert(cudaMemcpy(d_isActive, isActive.data(), maxParticles * sizeof(BOOL), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMalloc(&d_isActive, maxParticleCount * sizeof(BOOL)));
+    cudaAssert(cudaMemcpy(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice));
 
-    cudaAssert(cudaMalloc(&d_cellIndices, maxParticles * sizeof(int)));
+    cudaAssert(cudaMalloc(&d_cellIndices, maxParticleCount * sizeof(int)));
 
     cudaDeviceProp properties;
     cudaAssert(cudaGetDeviceProperties(&properties, 0));
@@ -120,14 +132,35 @@ Particles::~Particles() {
     cudaAssert(cudaFree(d_cellIndices));
 }
 
-void Particles::makeActive(unsigned int count, unsigned int xPos,
-                           unsigned int yPos, float direction) {
-    mouseXPos = xPos;
-    mouseYPos = yPos;
-    spawn = TRUE;
+void Particles::spawnParticles(unsigned int x, unsigned int y, BOOL shouldSpawn) {
+    if (shouldSpawn) {
+        mouseXPos = x;
+        mouseYPos = y;
+        spawn = TRUE;
+    } else {
+        spawn = FALSE;
+    }
 }
 
-void Particles::makeInactive(unsigned int count) {}
+void Particles::succParticles(unsigned int xPos, unsigned int yPos, BOOL shouldSucc) {
+    if (shouldSucc) {
+        mouseXPos = xPos;
+        mouseYPos = yPos;
+        succ = TRUE;
+    } else {
+        succ = FALSE;
+    }
+}
+
+void Particles::repelParticles(unsigned int xPos, unsigned int yPos, BOOL shouldRepel) {
+    if (shouldRepel) {
+        mouseXPos = xPos;
+        mouseYPos = yPos;
+        repel = TRUE;
+    } else {
+        repel = FALSE;
+    }
+}
 
 void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTime) {
     for (size_t i = startIndex; i < endIndex; i++) {
@@ -196,12 +229,44 @@ __global__ void assignParticlesToCells(Vec2<float> *pos, int *cellIndices, float
 
 __global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
                                     Vec2<float> pos, unsigned int currIndex) {
-    if (threadIdx.x == 0) {
-        posIn[currIndex].x = pos.x;
-        posIn[currIndex].y = pos.y;
-        velIn[currIndex].x = -500;
-        velIn[currIndex].y = 0;
-    }
+    // give each spawned particles some offset to avoid overlapping, not perfect
+    // but it's good enough tbh
+    posIn[currIndex + threadIdx.x].x = pos.x + threadIdx.x;
+    posIn[currIndex + threadIdx.x].y = pos.y + threadIdx.x;
+    velIn[currIndex + threadIdx.x].x = 0;
+    velIn[currIndex + threadIdx.x].y = 0;
+}
+
+// linear iterpolation
+__device__ float lerp(const float n1, const float n2, const float time) {
+	return n1 + time * (n2 - n1);
+}
+// Succ the particles to where the mouse is clicked
+__global__ void succParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
+                                    const BOOL *d_isActive, const Vec2<float> mousePos) {
+    int i = blockIdx.x;
+    if (!d_isActive[i]) return;
+
+    // don't succ the particle if it's too far away
+    Vec2<float> delta = mousePos - posIn[i];
+    if (delta.lengthSq() > powf(d_maxSuctionRange, 2)) return;
+
+    Vec2<float> deltaNorm = delta.normalized();
+    velIn[i] += deltaNorm * lerp(0.0f, d_suctionForce, delta.length() / d_maxSuctionRange);
+}
+
+// repel the particles from where the mouse is clicked
+__global__ void repelParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn,
+                                     const BOOL *d_isActive, const Vec2<float> mousePos) {
+    int i = blockIdx.x;
+    if (!d_isActive[i]) return;
+
+    // don't repel the particle if it's too far away
+    Vec2<float> delta = mousePos - posIn[i];
+    if (delta.lengthSq() > powf(d_maxRepelRange, 2)) return;
+
+    Vec2<float> deltaNorm = delta.normalized();
+    velIn[i] -= deltaNorm * lerp(0.0f, d_repelForce, delta.length() / d_maxRepelRange);
 }
 
 // The approach here is to have each block process one particle's collision
@@ -210,9 +275,9 @@ __global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 // There is a better way to approach this, which would require more complex
 // index mapping but allow more efficient gpu utilization. 
 __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
-                             const BOOL *d_isActive, const int *cellIndices, 
-                             const float deltaTime, const float gravity, 
-                             const float cellSize, 
+                             const BOOL *d_isActive, const int *cellIndices,
+                             const float deltaTime, const float gravity,
+                             const float cellSize,
                              Vec2<float> *posOut, Vec2<float> *velOut) {
     // represents the sum of all posDelta and velDelta of one particle
     __shared__ float posDeltaX;
@@ -312,12 +377,21 @@ void Particles::update(float deltaTime, float gravity) {
     dim3 threads = min(maxParticleCount, h_maxThreadCount);
 
     if (spawn && currIndex < maxParticleCount) {
-        spawnParticleKernel<<<1, 1, 0, stream>>>(d_positionIn, d_velocityIn, 
+        unsigned int spawnCount = 5;
+        spawnParticleKernel<<<1, spawnCount, 0, stream>>>(d_positionIn, d_velocityIn, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currIndex);
-        isActive[currIndex] = TRUE;
-        currIndex++;
-        spawn = FALSE;
+        memset(isActive.data() + currIndex, TRUE, spawnCount * sizeof(BOOL));
+        currIndex += spawnCount;
     }
+    if (succ) {
+        succParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, d_isActive, 
+            Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)));
+    }
+    if (repel) {
+        repelParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, d_isActive, 
+            Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)));
+    }
+
     cudaAssert(cudaMemcpyAsync(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice, stream));
     
     assignParticlesToCells<<<blocks, threads, 0, stream>>>(d_positionIn, d_cellIndices, cellSize);
