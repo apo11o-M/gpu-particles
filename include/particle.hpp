@@ -51,8 +51,8 @@ class Particles {
     // Cuda stuff, pointers to the device memory for particles
     Vec2<float> *d_positionIn, *d_velocityIn;
     Vec2<float> *d_positionOut, *d_velocityOut;
-    BOOL* d_isActive;
-    int *d_cellIndices;
+    BOOL *d_isActive;
+    int *d_cellIndices, *d_particleIndices;
 
     unsigned int h_maxBlockCount;
     unsigned int h_maxThreadCount;
@@ -71,6 +71,8 @@ class Particles {
     void succParticles(unsigned int x, unsigned int y, BOOL shouldSucc);
 
     void repelParticles(unsigned int x, unsigned int y, BOOL shouldRepel);
+
+    void sortParticlesByCell();
 
     void update(float deltaTime, float gravity);
 
