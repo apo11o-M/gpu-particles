@@ -9,9 +9,9 @@
   "borderTop": 100.0,
   "borderBottom": 700.0,
   "backgroundColor": "0x000000ff",
-  "maxParticleCount": 1250,
+  "maxParticleCount": 10000,
   
-  "particleRadius": 5.0,
+  "particleRadius": 1.0,
   "particleMass": 20.0,
   
   "velocityDampingFactor": 0.98,

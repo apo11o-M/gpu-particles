@@ -325,7 +325,7 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 
             int neighborCellIndex = neighborY * d_cellXCount + neighborX;
             for (int iter = threadIdx.x;
-                    iter < d_maxParticleCount && cellIndices[iter] == neighborCellIndex; 
+                    iter < d_maxParticleCount; 
                     iter += blockDim.x) {
                 int j = particleIndices[iter];
                 if (i == j || !d_isActive[j] || cellIndices[iter] != neighborCellIndex) continue;
@@ -389,11 +389,9 @@ void Particles::update(float deltaTime, float gravity) {
 
     dim3 blocks = maxParticleCount;
     dim3 threads = min(maxParticleCount, h_maxThreadCount);
-    // cout << "Blocks: " << blocks.x << ", Threads: " << threads.x << endl;
-    // cout << "maxParticleCount: " << maxParticleCount << ", h_maxThreadCount: " << h_maxThreadCount << endl;
 
     if (spawn && currIndex < maxParticleCount) {
-        unsigned int spawnCount = 1;
+        unsigned int spawnCount = 10;
         spawnParticleKernel<<<1, spawnCount, 0, stream>>>(d_positionIn, d_velocityIn, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currIndex);
         fill(isActive.begin() + currIndex, isActive.begin() + currIndex + spawnCount, TRUE);
