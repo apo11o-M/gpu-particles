@@ -110,7 +110,10 @@ Particles::Particles(const SimulationConfig& config)
     cudaAssert(cudaMalloc(&d_isActive, maxParticleCount * sizeof(BOOL)));
     cudaAssert(cudaMemcpy(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice));
 
-    cudaAssert(cudaMalloc(&d_cellIndices, maxParticleCount * sizeof(int)));
+    // from Matthias Müller, Ten Minute Physics, having the table size be twice 
+    // the size of the particle count is a good rule of thumb most of the time
+    cudaAssert(cudaMalloc(&d_spatialHashTable, (maxParticleCount * 2 + 1) * sizeof(int)));
+    cudaAssert(cudaMemset(d_spatialHashTable, 0, (maxParticleCount * 2 + 1) * sizeof(int)));
     cudaAssert(cudaMalloc(&d_particleIndices, maxParticleCount * sizeof(int)));
 
     cudaDeviceProp properties;
@@ -132,7 +135,7 @@ Particles::~Particles() {
     cudaAssert(cudaFree(d_isActive));
     cudaAssert(cudaFree(d_positionOut));
     cudaAssert(cudaFree(d_velocityOut));
-    cudaAssert(cudaFree(d_cellIndices));
+    cudaAssert(cudaFree(d_spatialHashTable));
     cudaAssert(cudaFree(d_particleIndices));
 }
 
@@ -259,24 +262,41 @@ __global__ void repelParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     velIn[i] -= deltaNorm * lerp(0.0f, d_repelForce, delta.length() / d_maxRepelRange);
 }
 
-__device__ int getCellIndex(float xPos, float yPos, float cellSize, int gridXCount) {
-    int x = (int)((xPos - d_borderLeft) / cellSize);
-    int y = (int)((yPos - d_borderTop) / cellSize);
-    return y * gridXCount + x;
+__device__ int spatialHash(int cellX, int cellY) {
+    int res = (cellX * 92837111) ^ (cellY * 689287499);
+    return res % (d_maxParticleCount * 2);
 }
 
-__global__ void assignParticlesToCells(Vec2<float> *pos, int *cellIndices, int *particleIndices, float cellSize) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= d_maxParticleCount) return;
+__global__ void createSpatialHashTable(Vec2<float> *pos, int *cellIndices, int *particleIndices, float cellSize) {
+    for (int i = threadIdx.x; i < d_maxParticleCount * 2 + 1; i += blockDim.x) {
+        cellIndices[i] = 0;
+    }
+    __syncthreads();
 
-    cellIndices[i] = getCellIndex(pos[i].x, pos[i].y, cellSize, d_cellXCount);
-    particleIndices[i] = i;
-}
+    for (int i = threadIdx.x; i < d_maxParticleCount; i += blockDim.x) {
+        int cellX = (int)((pos[i].x - d_borderLeft) / cellSize);
+        int cellY = (int)((pos[i].y - d_borderTop) / cellSize);
+        int hashIndex = spatialHash(cellX, cellY);
+        atomicAdd(&cellIndices[hashIndex], 1);
+    }
+    __syncthreads();
 
-void Particles::sortParticlesByCell() {
-    thrust::device_ptr<int> d_cellIndices(d_cellIndices);
-    thrust::device_ptr<int> d_particleIndices(d_particleIndices);
-    thrust::sort_by_key(d_cellIndices, d_cellIndices + maxParticleCount, d_particleIndices);
+    // prefix sum
+    if (threadIdx.x == 0) {
+        for (int i = 1; i < d_maxParticleCount * 2 + 1; i++) {
+            cellIndices[i] += cellIndices[i - 1];
+        }
+    }
+    __syncthreads();
+
+    // Fill in the particle indices array
+    for (int i = threadIdx.x; i < d_maxParticleCount; i += blockDim.x) {
+        int cellX = (int)((pos[i].x - d_borderLeft) / cellSize);
+        int cellY = (int)((pos[i].y - d_borderTop) / cellSize);
+        int hashIndex = spatialHash(cellX, cellY);
+        int index = atomicSub(&cellIndices[hashIndex], 1) - 1;
+        particleIndices[index] = i;
+    }
 }
 
 // The approach here is to have each block process one particle's collision
@@ -285,7 +305,7 @@ void Particles::sortParticlesByCell() {
 // There is a better way to approach this, which would require more complex
 // index mapping but allow more efficient gpu utilization. 
 __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
-                             const BOOL *d_isActive, const int *cellIndices,
+                             const BOOL *d_isActive, const int *spatialHashtable,
                              const int *particleIndices,
                              const float deltaTime, const float gravity,
                              const float cellSize,
@@ -323,12 +343,13 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
             if (neighborX < 0 || neighborX >= d_cellXCount 
                 || neighborY < 0 || neighborY >= d_cellYCount) continue;
 
-            int neighborCellIndex = neighborY * d_cellXCount + neighborX;
-            for (int iter = threadIdx.x;
-                    iter < d_maxParticleCount; 
-                    iter += blockDim.x) {
-                int j = particleIndices[iter];
-                if (i == j || !d_isActive[j] || cellIndices[iter] != neighborCellIndex) continue;
+            int hash = spatialHash(neighborX, neighborY);
+            int startIndex = spatialHashtable[hash];
+            for (int k = threadIdx.x + startIndex; 
+                    k < d_maxParticleCount && k < spatialHashtable[hash + 1]; 
+                    k += blockDim.x) {
+                int j = particleIndices[k];
+                if (i == j || !d_isActive[j]) continue;
 
                 Vec2<float> delta = posIn[i] - posIn[j];
                 if (delta.lengthSq() == 0
@@ -408,14 +429,11 @@ void Particles::update(float deltaTime, float gravity) {
 
     cudaAssert(cudaMemcpyAsync(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice, stream));
     
-    assignParticlesToCells<<<blocks, threads, 0, stream>>>(d_positionIn, d_cellIndices, d_particleIndices, cellSize);
-    cudaAssert(cudaStreamSynchronize(stream));
-
-    sortParticlesByCell();
+    createSpatialHashTable<<<1, threads, 0, stream>>>(d_positionIn, d_spatialHashTable, d_particleIndices, cellSize);
     cudaAssert(cudaStreamSynchronize(stream));
 
     updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, 
-        d_isActive, d_cellIndices, d_particleIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
+        d_isActive, d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
     cudaAssert(cudaStreamSynchronize(stream));
 
     cudaAssert(cudaMemcpyAsync(position.data(), d_positionIn, maxParticleCount * sizeof(Vec2<float>), cudaMemcpyDeviceToHost, stream));

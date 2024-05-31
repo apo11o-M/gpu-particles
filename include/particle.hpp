@@ -52,7 +52,9 @@ class Particles {
     Vec2<float> *d_positionIn, *d_velocityIn;
     Vec2<float> *d_positionOut, *d_velocityOut;
     BOOL *d_isActive;
-    int *d_cellIndices, *d_particleIndices;
+
+    // see https://www.youtube.com/watch?v=D2M8jTtKi44 at 6:05, amazing stuff
+    int *d_spatialHashTable, *d_particleIndices;
 
     unsigned int h_maxBlockCount;
     unsigned int h_maxThreadCount;
@@ -72,7 +74,7 @@ class Particles {
 
     void repelParticles(unsigned int x, unsigned int y, BOOL shouldRepel);
 
-    void sortParticlesByCell();
+    // void sortParticlesByCell();
 
     void update(float deltaTime, float gravity);
 
