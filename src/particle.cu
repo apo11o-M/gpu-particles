@@ -389,14 +389,14 @@ void Particles::update(float deltaTime, float gravity) {
 
     dim3 blocks = maxParticleCount;
     dim3 threads = min(maxParticleCount, h_maxThreadCount);
-    cout << "Blocks: " << blocks.x << ", Threads: " << threads.x << endl;
-    cout << "maxParticleCount: " << maxParticleCount << ", h_maxThreadCount: " << h_maxThreadCount << endl;
+    // cout << "Blocks: " << blocks.x << ", Threads: " << threads.x << endl;
+    // cout << "maxParticleCount: " << maxParticleCount << ", h_maxThreadCount: " << h_maxThreadCount << endl;
 
     if (spawn && currIndex < maxParticleCount) {
-        unsigned int spawnCount = 5;
+        unsigned int spawnCount = 1;
         spawnParticleKernel<<<1, spawnCount, 0, stream>>>(d_positionIn, d_velocityIn, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currIndex);
-        memset(isActive.data() + currIndex, TRUE, spawnCount * sizeof(BOOL));
+        fill(isActive.begin() + currIndex, isActive.begin() + currIndex + spawnCount, TRUE);
         currIndex += spawnCount;
     }
     if (succ) {

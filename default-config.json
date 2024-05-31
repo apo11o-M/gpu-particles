@@ -9,7 +9,7 @@
   "borderTop": 100.0,
   "borderBottom": 700.0,
   "backgroundColor": "0x000000ff",
-  "maxParticleCount": 1000,
+  "maxParticleCount": 1250,
   
   "particleRadius": 5.0,
   "particleMass": 20.0,
