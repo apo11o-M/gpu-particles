@@ -9,9 +9,9 @@
   "borderTop": 100.0,
   "borderBottom": 900.0,
   "backgroundColor": "0x000000ff",
-  "maxParticleCount": 10000,
+  "maxParticleCount": 2000,
   
-  "particleRadius": 1.0,
+  "particleRadius": 5.0,
   "particleMass": 20.0,
   
   "velocityDampingFactor": 0.99,
@@ -25,5 +25,6 @@
   "repelForce": 500.0,
 
   "spawnSize": 10.0,
-  "spawnRate": 10.0
+  "spawnRate": 10.0,
+  "spawnCount": 5
 }

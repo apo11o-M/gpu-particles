@@ -59,16 +59,16 @@ using json = nlohmann::json;
 
 struct SimulationConfig {
     string name = "Rectangle Particle Demo";
-    unsigned int windowWidth = 1000;
-    unsigned int windowHeight = 800;
+    unsigned int windowWidth = 1200;
+    unsigned int windowHeight = 1000;
     unsigned int borderLeft = 200;
-    unsigned int borderRight = 800;
+    unsigned int borderRight = 1000;
     unsigned int borderTop = 100;
-    unsigned int borderBottom = 700;
+    unsigned int borderBottom = 900;
     string backgroundColor = "0x000000ff";
     
     unsigned int maxParticleCount = 1000;
-    float particleRadius = 3.0f;
+    float particleRadius = 5.0f;
     float particleMass = 20.0f;
 
     float velocityDampingFactor = 0.95f;
@@ -80,6 +80,8 @@ struct SimulationConfig {
     float suctionForce = 50.0f;
     float maxRepelRange = 50.0f;
     float repelForce = 1000.0f;
+
+    unsigned int spawnCount = 5;
 
     static SimulationConfig fromJson(const json& json) {
         SimulationConfig config;
@@ -102,6 +104,7 @@ struct SimulationConfig {
         if (json.contains("suctionForce")) config.suctionForce = json["suctionForce"];
         if (json.contains("maxRepelRange")) config.maxRepelRange = json["maxRepelRange"];
         if (json.contains("repelForce")) config.repelForce = json["repelForce"];
+        if (json.contains("spawnCount")) config.spawnCount = json["spawnCount"];
         return config;
     }
 };

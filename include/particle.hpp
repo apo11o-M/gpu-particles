@@ -59,6 +59,8 @@ class Particles {
     unsigned int h_maxBlockCount;
     unsigned int h_maxThreadCount;
 
+    unsigned int spawnCount;
+
    private:
     void swapDeviceParticles();
     void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
