@@ -37,26 +37,28 @@ Particles::Particles(const SimulationConfig& config)
       vertices(sf::Quads, config.maxParticleCount * 4),
       renderingThreads(thread::hardware_concurrency() / 2),
       chunkSize(config.maxParticleCount / renderingThreads) {
-    this->maxParticleCount = config.maxParticleCount;
+    
+    currActiveIndex = -1;
+    maxParticleCount = config.maxParticleCount;
+    
     radius = config.particleRadius;
     mass = config.particleMass;
     restitution = config.restitutionCoefficient;
     dampingFactor = config.velocityDampingFactor;
     dampingFactorRate = config.velocityDampingFactorRate;
-    currActiveIndex = -1;
     maxSuctionRange = config.maxSuctionRange;
     suctionForce = config.suctionForce;
     maxRepelRange = config.maxRepelRange;
     repelForce = config.repelForce;
 
-    this->borderLeft = config.borderLeft;
-    this->borderRight = config.borderRight;
-    this->borderTop = config.borderTop;
-    this->borderBottom = config.borderBottom;
+    borderLeft = config.borderLeft;
+    borderRight = config.borderRight;
+    borderTop = config.borderTop;
+    borderBottom = config.borderBottom;
 
     cellSize = config.particleRadius * 2.5;
-    this->cellXCount = (borderRight - borderLeft) / cellSize;
-    this->cellYCount = (borderBottom - borderTop) / cellSize;
+    cellXCount = (borderRight - borderLeft) / cellSize;
+    cellYCount = (borderBottom - borderTop) / cellSize;
 
     cout << "Maximum particle count: " << maxParticleCount << endl;
     cout << "Borders: " << borderLeft << ", " << borderRight << ", " << borderTop << ", " << borderBottom << endl;
@@ -196,8 +198,8 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
 
 void Particles::render(sf::RenderWindow &window, float deltaTime) {
     // we only create as many threads as needed to render the particles
+    // we could use a threadpool library here, but thats a bit overkill for this
     const size_t threadCount = min(renderingThreads, currActiveIndex / chunkSize + 1);
-    // const size_t threadCount = 1;
 
     vector<thread> threads;
     for (size_t t = 0; t < threadCount; t++) {
@@ -217,7 +219,7 @@ void Particles::render(sf::RenderWindow &window, float deltaTime) {
 __global__ void spawnParticleKernel(Vec2<float> *position, Vec2<float> *velocity, 
                                     Vec2<float> mousePosition, int currIndex) {
     // give each spawned particles some offset to avoid overlapping, not perfect
-    // but it's good enough tbh
+    // but it's good enough
     position[currIndex + threadIdx.x].x = mousePosition.x + threadIdx.x;
     position[currIndex + threadIdx.x].y = mousePosition.y + threadIdx.x;
     velocity[currIndex + threadIdx.x].x = 0;
@@ -268,15 +270,18 @@ __device__ int spatialHash(int cellX, int cellY) {
     return res % (d_maxParticleCount * 2);
 }
 
-__global__ void createSpatialHashTable(Vec2<float> *pos, int *cellIndices, int *particleIndices, float cellSize) {
+__global__ void createSpatialHashTable(Vec2<float> *position, int *cellIndices, int *particleIndices, float cellSize) {
+    // very important to initialize them to be 0, as this cellIndices hashtable 
+    // is used in the previous physics frame update.
     for (int i = threadIdx.x; i < d_maxParticleCount * 2 + 1; i += blockDim.x) {
         cellIndices[i] = 0;
     }
     __syncthreads();
 
+    // count the number of particles in each cell
     for (int i = threadIdx.x; i < d_maxParticleCount; i += blockDim.x) {
-        int cellX = (int)((pos[i].x - d_borderLeft) / cellSize);
-        int cellY = (int)((pos[i].y - d_borderTop) / cellSize);
+        int cellX = (int)((position[i].x - d_borderLeft) / cellSize);
+        int cellY = (int)((position[i].y - d_borderTop) / cellSize);
         int hashIndex = spatialHash(cellX, cellY);
         atomicAdd(&cellIndices[hashIndex], 1);
     }
@@ -290,10 +295,9 @@ __global__ void createSpatialHashTable(Vec2<float> *pos, int *cellIndices, int *
     }
     __syncthreads();
 
-    // Fill in the particle indices array
     for (int i = threadIdx.x; i < d_maxParticleCount; i += blockDim.x) {
-        int cellX = (int)((pos[i].x - d_borderLeft) / cellSize);
-        int cellY = (int)((pos[i].y - d_borderTop) / cellSize);
+        int cellX = (int)((position[i].x - d_borderLeft) / cellSize);
+        int cellY = (int)((position[i].y - d_borderTop) / cellSize);
         int hashIndex = spatialHash(cellX, cellY);
         int index = atomicSub(&cellIndices[hashIndex], 1) - 1;
         particleIndices[index] = i;
@@ -363,7 +367,7 @@ __global__ void updateKernel(Vec2<float> *position, Vec2<float> *velocity,
                 float dotProd = dot(relativeVelocity, deltaNorm);
                 if (dotProd <= 0) {
                     float impulse = 2 * dotProd / (d_mass + d_mass);
-                    impulse = clamp(impulse, -5.0f, 5.0f);
+                    impulse = clamp(impulse, -4.0f, 4.0f);
                     velDelta -= deltaNorm * impulse * d_mass * d_restitution;
                 }
 
