@@ -170,60 +170,35 @@ void Particles::repelParticles(unsigned int xPos, unsigned int yPos, BOOL should
     }
 }
 
-void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTime) {
-    const float textureSize = 1024.0f;
-    for (size_t i = startIndex; i < endIndex; i++) {
-        if (i > currActiveIndex) return;
-
-        // interpolating the position to achieve smoother movement
-        float x = position[i].x - radius + velocity[i].x * deltaTime;
-        float y = position[i].y - radius + velocity[i].y * deltaTime;
-
-        vertices[i * 4 + 0].position = sf::Vector2f(x - radius, y - radius);
-        vertices[i * 4 + 1].position = sf::Vector2f(x + radius, y - radius);
-        vertices[i * 4 + 2].position = sf::Vector2f(x + radius, y + radius);
-        vertices[i * 4 + 3].position = sf::Vector2f(x - radius, y + radius);
-
-        vertices[i * 4 + 0].texCoords = sf::Vector2f(0.0f, 0.0f);
-        vertices[i * 4 + 1].texCoords = sf::Vector2f(textureSize, 0.0f);
-        vertices[i * 4 + 2].texCoords = sf::Vector2f(textureSize, textureSize);
-        vertices[i * 4 + 3].texCoords = sf::Vector2f(0.0f, textureSize);
-
-        vertices[i * 4 + 0].color = sf::Color(r[i], g[i], b[i]);
-        vertices[i * 4 + 1].color = sf::Color(r[i], g[i], b[i]);
-        vertices[i * 4 + 2].color = sf::Color(r[i], g[i], b[i]);
-        vertices[i * 4 + 3].color = sf::Color(r[i], g[i], b[i]);
-    }
-}
-
 void Particles::render(sf::RenderWindow &window, float deltaTime) {
-    // we only create as many threads as needed to render the particles
-    // we could use a threadpool library here, but thats a bit overkill for this
-    const size_t threadCount = min(renderingThreads, currActiveIndex / chunkSize + 1);
+    BS::multi_future<void> future = threadpool.submit_loop(
+        0, currActiveIndex,
+        [this, deltaTime](int i) {
+            const float textureSize = 1024.0f;
+            if (i >= currActiveIndex) return;
 
-    vector<thread> threads;
-    for (size_t t = 0; t < threadCount; t++) {
-        size_t startIndex = t * chunkSize;
-        size_t endIndex = (t == threadCount - 1) ? maxParticleCount : startIndex + chunkSize;
+            // interpolating the position to achieve smoother movement
+            float x = position[i].x - radius + velocity[i].x * deltaTime;
+            float y = position[i].y - radius + velocity[i].y * deltaTime;
 
-        threads.emplace_back(&Particles::updateVertices, this, startIndex, endIndex, deltaTime);
-    }
+            vertices[i * 4 + 0].position = sf::Vector2f(x - radius, y - radius);
+            vertices[i * 4 + 1].position = sf::Vector2f(x + radius, y - radius);
+            vertices[i * 4 + 2].position = sf::Vector2f(x + radius, y + radius);
+            vertices[i * 4 + 3].position = sf::Vector2f(x - radius, y + radius);
 
-    for (thread &thread : threads) {
-        thread.join();
-    }
+            vertices[i * 4 + 0].texCoords = sf::Vector2f(0.0f, 0.0f);
+            vertices[i * 4 + 1].texCoords = sf::Vector2f(textureSize, 0.0f);
+            vertices[i * 4 + 2].texCoords = sf::Vector2f(textureSize, textureSize);
+            vertices[i * 4 + 3].texCoords = sf::Vector2f(0.0f, textureSize);
 
+            vertices[i * 4 + 0].color = sf::Color(r[i], g[i], b[i]);
+            vertices[i * 4 + 1].color = sf::Color(r[i], g[i], b[i]);
+            vertices[i * 4 + 2].color = sf::Color(r[i], g[i], b[i]);
+            vertices[i * 4 + 3].color = sf::Color(r[i], g[i], b[i]);   
+        }
+    );
+    future.wait();
     window.draw(vertices, &texture);
-}
-
-__global__ void spawnParticleKernel(Vec2<float> *position, Vec2<float> *velocity, 
-                                    Vec2<float> mousePosition, int currIndex) {
-    // give each spawned particles some offset to avoid overlapping, not perfect
-    // but it's good enough
-    position[currIndex + threadIdx.x].x = mousePosition.x + threadIdx.x;
-    position[currIndex + threadIdx.x].y = mousePosition.y + threadIdx.x;
-    velocity[currIndex + threadIdx.x].x = 0;
-    velocity[currIndex + threadIdx.x].y = 0;
 }
 
 // clamp the value between min and max
@@ -234,6 +209,20 @@ __device__ float clamp(float val, float min, float max) {
 // linear iterpolation
 __device__ float lerp(const float n1, const float n2, const float time) {
 	return n1 + time * (n2 - n1);
+}
+
+__global__ void spawnParticleKernel(Vec2<float> *position, Vec2<float> *velocity, 
+                                    Vec2<float> mousePosition, int currIndex) {
+    // give each spawned particles some offset to avoid overlapping, not perfect
+    // but it's good enough
+    position[currIndex + threadIdx.x].x = d_borderLeft + 100;
+    position[currIndex + threadIdx.x].y = d_borderTop + 100 + threadIdx.x * d_radius * 2;
+    velocity[currIndex + threadIdx.x].x = 800;
+    velocity[currIndex + threadIdx.x].y = 200;
+    // position[currIndex + threadIdx.x].x = mousePosition.x + threadIdx.x;
+    // position[currIndex + threadIdx.x].y = mousePosition.y + threadIdx.x;
+    // velocity[currIndex + threadIdx.x].x = 0;
+    // velocity[currIndex + threadIdx.x].y = 0;
 }
 
 // Succ the particles to where the mouse is clicked
@@ -432,7 +421,7 @@ void Particles::update(float deltaTime, float gravity) {
         currActiveIndex = (currActiveIndex == -1) ? 0 : currActiveIndex;
         spawnParticleKernel<<<1, min(spawnCount, maxParticleCount - spawnCount), 0, stream>>>(d_position, d_velocity, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currActiveIndex);
-        currActiveIndex += min(spawnCount - 1, maxParticleCount - spawnCount);
+        currActiveIndex += min(spawnCount, maxParticleCount - spawnCount);
     }
     if (succ && currActiveIndex != -1) {
         succParticlesKernel<<<blocks, threads, 0, stream>>>(d_position, d_velocity, currActiveIndex, 
@@ -450,6 +439,8 @@ void Particles::update(float deltaTime, float gravity) {
     // for (int iter = 0; iter < 4; iter++) {
     updateKernel<<<blocks, threads, 0, stream>>>(d_position, d_velocity, currActiveIndex,
         d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize);
+    // positionBasedDynamicsKernel<<<1, 1, 0, stream>>>(d_position, d_velocity, currActiveIndex,
+    //     d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize);
     cudaAssert(cudaStreamSynchronize(stream));
     // }
 

@@ -9,13 +9,22 @@
   "borderTop": 100.0,
   "borderBottom": 600.0,
   "backgroundColor": "0x000000ff",
-  "maxParticleCount": 25,
+  "maxParticleCount": 200,
 
   "particleRadius": 10.0,
   "particleMass": 20.0,
 
-  "velocityDampingFactor": 0.95,
-  "velocityDampingFactorRate": 60.0,
-  "restitutionCoefficient": 0.6,
-  "gravity": 200.0
+  "velocityDampingFactor": 0.99,
+  "velocityDampingFactorRate": 90.0,
+  "restitutionCoefficient": 0.45,
+  "gravity": 90.0,
+
+  "maxSuctionRange": 100.0,
+  "suctionForce": 20.0,
+  "maxRepelRange": 50.0,
+  "repelForce": 500.0,
+
+  "spawnSize": 10.0,
+  "spawnRate": 10.0,
+  "spawnCount": 2
 }

@@ -15,9 +15,9 @@
   "particleMass": 20.0,
   
   "velocityDampingFactor": 0.99,
-  "velocityDampingFactorRate": 90.0,
+  "velocityDampingFactorRate": 50.0,
   "restitutionCoefficient": 0.45,
-  "gravity": 90.0,
+  "gravity": 0,
 
   "maxSuctionRange": 100.0,
   "suctionForce": 20.0,
@@ -26,5 +26,5 @@
 
   "spawnSize": 10.0,
   "spawnRate": 10.0,
-  "spawnCount": 5
+  "spawnCount": 4
 }

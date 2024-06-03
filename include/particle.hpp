@@ -2,6 +2,8 @@
 #define PARTICLE_HPP
 
 #include "pch.hpp"
+#include "BS_thread_pool.hpp"
+#include <future>
 
 // Using Structure of Array as the design choice for better memory access
 // pattern and cache locality
@@ -58,8 +60,7 @@ class Particles {
     // Cuda device properties, for the number of blocks and threads
     unsigned int gpu_maxBlockCount, gpu_maxThreadCount;
 
-   private:
-    void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
+    BS::thread_pool threadpool;
 
    public:
     Particles(const SimulationConfig& config);
