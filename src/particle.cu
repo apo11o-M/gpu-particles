@@ -107,14 +107,10 @@ Particles::Particles(const SimulationConfig& config)
     cudaAssert(cudaMemcpyToSymbol(d_cellYCount, &cellYCount, sizeof(unsigned int)));
 
     // allocate memory for the particles in the device
-    cudaAssert(cudaMalloc(&d_positionIn, maxParticleCount * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_velocityIn, maxParticleCount * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_positionOut, maxParticleCount * sizeof(Vec2<float>)));
-    cudaAssert(cudaMalloc(&d_velocityOut, maxParticleCount * sizeof(Vec2<float>)));
-    cudaAssert(cudaMemcpy(d_positionIn, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_velocityIn, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_positionOut, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
-    cudaAssert(cudaMemcpy(d_velocityOut, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMalloc(&d_position, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMalloc(&d_velocity, maxParticleCount * sizeof(Vec2<float>)));
+    cudaAssert(cudaMemcpy(d_position, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
+    cudaAssert(cudaMemcpy(d_velocity, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
 
     // from Matthias Müller, Ten Minute Physics, having the table size be twice 
     // the size of the particle count is a good rule of thumb most of the time
@@ -124,11 +120,11 @@ Particles::Particles(const SimulationConfig& config)
 
     cudaDeviceProp properties;
     cudaAssert(cudaGetDeviceProperties(&properties, 0));
-    h_maxBlockCount = properties.maxGridSize[0];
-    h_maxThreadCount = properties.maxThreadsPerBlock;
-    if (h_maxBlockCount < maxParticleCount) {
+    gpu_maxBlockCount = properties.maxGridSize[0];
+    gpu_maxThreadCount = properties.maxThreadsPerBlock;
+    if (gpu_maxBlockCount < maxParticleCount) {
         cout << "The number of particles is too large for the device, abort\n"
-             << "GPU max grid size: " << h_maxBlockCount
+             << "GPU max grid size: " << gpu_maxBlockCount
              << ", which is too low for " << maxParticleCount << " particles."
              << endl;
         abort();
@@ -136,10 +132,8 @@ Particles::Particles(const SimulationConfig& config)
 }
 
 Particles::~Particles() {
-    cudaAssert(cudaFree(d_positionIn));
-    cudaAssert(cudaFree(d_velocityIn));
-    cudaAssert(cudaFree(d_positionOut));
-    cudaAssert(cudaFree(d_velocityOut));
+    cudaAssert(cudaFree(d_position));
+    cudaAssert(cudaFree(d_velocity));
     cudaAssert(cudaFree(d_spatialHashTable));
     cudaAssert(cudaFree(d_particleIndices));
 }
@@ -220,23 +214,14 @@ void Particles::render(sf::RenderWindow &window, float deltaTime) {
     window.draw(vertices, &texture);
 }
 
-void Particles::swapDeviceParticles() {
-    Vec2<float> *tempPos = d_positionIn;
-    d_positionIn = d_positionOut;
-    d_positionOut = tempPos;
-    Vec2<float> *tempVel = d_velocityIn;
-    d_velocityIn = d_velocityOut;
-    d_velocityOut = tempVel;
-}
-
-__global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
-                                    Vec2<float> pos, int currIndex) {
+__global__ void spawnParticleKernel(Vec2<float> *position, Vec2<float> *velocity, 
+                                    Vec2<float> mousePosition, int currIndex) {
     // give each spawned particles some offset to avoid overlapping, not perfect
     // but it's good enough tbh
-    posIn[currIndex + threadIdx.x].x = pos.x + threadIdx.x;
-    posIn[currIndex + threadIdx.x].y = pos.y + threadIdx.x;
-    velIn[currIndex + threadIdx.x].x = 0;
-    velIn[currIndex + threadIdx.x].y = 0;
+    position[currIndex + threadIdx.x].x = mousePosition.x + threadIdx.x;
+    position[currIndex + threadIdx.x].y = mousePosition.y + threadIdx.x;
+    velocity[currIndex + threadIdx.x].x = 0;
+    velocity[currIndex + threadIdx.x].y = 0;
 }
 
 // clamp the value between min and max
@@ -250,31 +235,31 @@ __device__ float lerp(const float n1, const float n2, const float time) {
 }
 
 // Succ the particles to where the mouse is clicked
-__global__ void succParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
+__global__ void succParticlesKernel(Vec2<float> *position, Vec2<float> *velocity, 
                                     const int currActiveIndex, const Vec2<float> mousePos) {
     int i = blockIdx.x;
     if (i > currActiveIndex) return;
 
     // don't succ the particle if it's too far away
-    Vec2<float> delta = mousePos - posIn[i];
+    Vec2<float> delta = mousePos - position[i];
     if (delta.lengthSq() > powf(d_maxSuctionRange, 2)) return;
 
     Vec2<float> deltaNorm = delta.normalized();
-    velIn[i] += deltaNorm * lerp(0.0f, d_suctionForce, delta.length() / d_maxSuctionRange);
+    velocity[i] += deltaNorm * lerp(0.0f, d_suctionForce, delta.length() / d_maxSuctionRange);
 }
 
 // repel the particles from where the mouse is clicked
-__global__ void repelParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn,
+__global__ void repelParticlesKernel(Vec2<float> *position, Vec2<float> *velocity,
                                      const int currActiveIndex, const Vec2<float> mousePos) {
     int i = blockIdx.x;
     if (i > currActiveIndex) return;
 
     // don't repel the particle if it's too far away
-    Vec2<float> delta = mousePos - posIn[i];
+    Vec2<float> delta = mousePos - position[i];
     if (delta.lengthSq() > powf(d_maxRepelRange, 2)) return;
 
     Vec2<float> deltaNorm = delta.normalized();
-    velIn[i] -= deltaNorm * lerp(0.0f, d_repelForce, delta.length() / d_maxRepelRange);
+    velocity[i] -= deltaNorm * lerp(0.0f, d_repelForce, delta.length() / d_maxRepelRange);
 }
 
 // spatial hash function, using two large prime numbers to avoid collisions
@@ -320,12 +305,11 @@ __global__ void createSpatialHashTable(Vec2<float> *pos, int *cellIndices, int *
 // block will have n number of threads.
 // There is a better way to approach this, which would require more complex
 // index mapping but allow more efficient gpu utilization. 
-__global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
+__global__ void updateKernel(Vec2<float> *position, Vec2<float> *velocity,
                              const int currActiveIndex, 
                              const int *spatialHashtable, const int *particleIndices,
                              const float deltaTime, const float gravity,
-                             const float cellSize,
-                             Vec2<float> *posOut, Vec2<float> *velOut) {
+                             const float cellSize) {
     // represents the sum of all posDelta and velDelta of one particle
     __shared__ float posDeltaX;
     __shared__ float posDeltaY;
@@ -348,8 +332,8 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     int base = blockIdx.x;
     int i = particleIndices[base];
     if (i > currActiveIndex) return;
-    int cellXPos = (int)((posIn[i].x - d_borderLeft) / cellSize);
-    int cellYPos = (int)((posIn[i].y - d_borderTop) / cellSize);
+    int cellXPos = (int)((position[i].x - d_borderLeft) / cellSize);
+    int cellYPos = (int)((position[i].y - d_borderTop) / cellSize);
 
     // check for collisions within cells and neighboring cells
     for (int offsetY = -1; offsetY <= 1; offsetY++) {
@@ -368,14 +352,14 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
                 if (i == j || j > currActiveIndex) continue;
 
                 // impulse based collision
-                Vec2<float> delta = posIn[i] - posIn[j];
+                Vec2<float> delta = position[i] - position[j];
                 if (delta.lengthSq() == 0
                     || delta.lengthSq() > powf(d_radius + d_radius, 2)) continue;
                 Vec2<float> deltaNorm = delta.normalized();
                 float overlap = (d_radius + d_radius) - delta.length();
                 posDelta += deltaNorm * overlap / 2.5f;
 
-                Vec2<float> relativeVelocity = velIn[i] - velIn[j];
+                Vec2<float> relativeVelocity = velocity[i] - velocity[j];
                 float dotProd = dot(relativeVelocity, deltaNorm);
                 if (dotProd <= 0) {
                     float impulse = 2 * dotProd / (d_mass + d_mass);
@@ -385,7 +369,7 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 
                 // position based dynamics
                 // doesn't work too well compared to impulse based collision tho
-                // Vec2<float> delta = posIn[j] - posIn[i];
+                // Vec2<float> delta = position[j] - position[i];
                 // float distSqr = delta.lengthSq();
                 // if (delta.lengthSq() == 0
                 //     || distSqr > powf(d_radius + d_radius, 2)) continue;
@@ -409,27 +393,27 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
     if (threadIdx.x != 0) return;
 
     // coalesce the shared memory into the final position and velocity output
-    velOut[i] = velIn[i] + Vec2<float>(velDeltaX, velDeltaY);
-    velOut[i] *= powf(d_dampingFactor, d_dampingFactorRate * deltaTime);
-    velOut[i].y += gravity * deltaTime;
-    posOut[i] = posIn[i] + Vec2<float>(posDeltaX, posDeltaY) + velOut[i] * deltaTime;
+    velocity[i] = velocity[i] + Vec2<float>(velDeltaX, velDeltaY);
+    velocity[i] *= powf(d_dampingFactor, d_dampingFactorRate * deltaTime);
+    velocity[i].y += gravity * deltaTime;
+    position[i] = position[i] + Vec2<float>(posDeltaX, posDeltaY) + velocity[i] * deltaTime;
 
     // check for border collisions
-    if (posOut[i].x - d_radius < d_borderLeft) {
-        posOut[i].x = d_borderLeft + d_radius;
-        velOut[i].x *= -1 * d_restitution;
+    if (position[i].x - d_radius < d_borderLeft) {
+        position[i].x = d_borderLeft + d_radius;
+        velocity[i].x *= -1 * d_restitution;
     }
-    if (posOut[i].x + d_radius > d_borderRight) {
-        posOut[i].x = d_borderRight - d_radius;
-        velOut[i].x *= -1 * d_restitution;
+    if (position[i].x + d_radius > d_borderRight) {
+        position[i].x = d_borderRight - d_radius;
+        velocity[i].x *= -1 * d_restitution;
     }
-    if (posOut[i].y - d_radius < d_borderTop) {
-        posOut[i].y = d_borderTop + d_radius;
-        velOut[i].y *= -1 * d_restitution;
+    if (position[i].y - d_radius < d_borderTop) {
+        position[i].y = d_borderTop + d_radius;
+        velocity[i].y *= -1 * d_restitution;
     }
-    if (posOut[i].y + d_radius > d_borderBottom) {
-        posOut[i].y = d_borderBottom - d_radius;
-        velOut[i].y *= -1 * d_restitution;
+    if (position[i].y + d_radius > d_borderBottom) {
+        position[i].y = d_borderBottom - d_radius;
+        velocity[i].y *= -1 * d_restitution;
     }
 }
 
@@ -438,35 +422,33 @@ void Particles::update(float deltaTime, float gravity) {
     cudaAssert(cudaStreamCreate(&stream));
 
     dim3 blocks = maxParticleCount;
-    dim3 threads = min(maxParticleCount, h_maxThreadCount);
+    dim3 threads = min(maxParticleCount, gpu_maxThreadCount);
 
     if (spawn && (currActiveIndex == -1 || currActiveIndex < maxParticleCount)) {
         currActiveIndex = (currActiveIndex == -1) ? 0 : currActiveIndex;
-        spawnParticleKernel<<<1, min(spawnCount, maxParticleCount - spawnCount), 0, stream>>>(d_positionIn, d_velocityIn, 
+        spawnParticleKernel<<<1, min(spawnCount, maxParticleCount - spawnCount), 0, stream>>>(d_position, d_velocity, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currActiveIndex);
         currActiveIndex += min(spawnCount - 1, maxParticleCount - spawnCount);
     }
     if (succ && currActiveIndex != -1) {
-        succParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, currActiveIndex, 
+        succParticlesKernel<<<blocks, threads, 0, stream>>>(d_position, d_velocity, currActiveIndex, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)));
     }
     if (repel && currActiveIndex != -1) {
-        repelParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, currActiveIndex, 
+        repelParticlesKernel<<<blocks, threads, 0, stream>>>(d_position, d_velocity, currActiveIndex, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)));
     }  
 
-    createSpatialHashTable<<<1, threads, 0, stream>>>(d_positionIn, d_spatialHashTable, d_particleIndices, cellSize);
+    createSpatialHashTable<<<1, threads, 0, stream>>>(d_position, d_spatialHashTable, d_particleIndices, cellSize);
     cudaAssert(cudaStreamSynchronize(stream));
 
     // this is the iterative solver loop for the position based dynamics, unused for now
     // for (int iter = 0; iter < 4; iter++) {
-    updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, currActiveIndex,
-        d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
+    updateKernel<<<blocks, threads, 0, stream>>>(d_position, d_velocity, currActiveIndex,
+        d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize);
     cudaAssert(cudaStreamSynchronize(stream));
     // }
 
-    cudaAssert(cudaMemcpyAsync(position.data(), d_positionOut, maxParticleCount * sizeof(Vec2<float>), cudaMemcpyDeviceToHost, stream));
-    swapDeviceParticles();
-
+    cudaAssert(cudaMemcpyAsync(position.data(), d_position, maxParticleCount * sizeof(Vec2<float>), cudaMemcpyDeviceToHost, stream));
     cudaAssert(cudaStreamDestroy(stream));
 }

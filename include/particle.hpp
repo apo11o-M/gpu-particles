@@ -20,6 +20,8 @@
 // the update function
 class Particles {
    public:
+    // All particles from index 0 to currActiveIndex are active
+    int currActiveIndex;
     unsigned int maxParticleCount;
 
     // the border of the scene, should be <= to the windows size
@@ -28,20 +30,19 @@ class Particles {
 
     // the number of grids in spatial partioning
     unsigned int cellXCount, cellYCount;
+    float cellSize;
 
     // mouse events
-    unsigned int mouseXPos, mouseYPos;
     BOOL spawn, succ, repel;
+    unsigned int mouseXPos, mouseYPos;
+    unsigned int spawnCount;
+    float maxSuctionRange, suctionForce;
+    float maxRepelRange, repelForce;
 
     // physics stuff
-    float cellSize;
     vector<Vec2<float>> velocity, position;
     float radius, mass;
     float dampingFactor, dampingFactorRate, restitution;
-    // All particles from index 0 to currActiveIndex are active
-    int currActiveIndex;
-    float maxSuctionRange, suctionForce;
-    float maxRepelRange, repelForce;
 
     // rendering stuff
     vector<uint8_t> r, g, b;
@@ -49,20 +50,15 @@ class Particles {
     sf::Texture texture;
     const size_t renderingThreads, chunkSize;
 
-    // Cuda stuff, pointers to the device memory for particles
-    Vec2<float> *d_positionIn, *d_velocityIn;
-    Vec2<float> *d_positionOut, *d_velocityOut;
-
+    // Cuda physics stuff, pointers to the device memory for particles
+    Vec2<float> *d_position, *d_velocity;
     // see https://www.youtube.com/watch?v=D2M8jTtKi44 at 6:05, amazing stuff
     int *d_spatialHashTable, *d_particleIndices;
-
-    unsigned int h_maxBlockCount;
-    unsigned int h_maxThreadCount;
-
-    unsigned int spawnCount;
+    
+    // Cuda device properties, for the number of blocks and threads
+    unsigned int gpu_maxBlockCount, gpu_maxThreadCount;
 
    private:
-    void swapDeviceParticles();
     void updateVertices(size_t startIndex, size_t endIndex, float deltaTime);
 
    public:
@@ -75,8 +71,6 @@ class Particles {
     void succParticles(unsigned int x, unsigned int y, BOOL shouldSucc);
 
     void repelParticles(unsigned int x, unsigned int y, BOOL shouldRepel);
-
-    // void sortParticlesByCell();
 
     void update(float deltaTime, float gravity);
 
