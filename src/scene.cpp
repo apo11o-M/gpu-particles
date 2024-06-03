@@ -6,7 +6,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
     if (file.is_open()) {
         cout << "Config file opened successfully: " << configFilename << endl;
     } else {
-        cout << "Unable to open config file: " << configFilename
+        cerr << "Unable to open config file: " << configFilename
              << "Using default config: default-config.json" << endl;
     }
     json data = json::parse(file);
@@ -29,7 +29,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
         fpsText.setFillColor(sf::Color::White);
         fpsText.setPosition(15.0f, 15.0f);
     } catch (std::runtime_error& e) {
-        std::cerr << e.what() << std::endl;
+        cerr << e.what() << endl;
         exit(1);
     }
 

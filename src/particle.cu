@@ -35,7 +35,7 @@ Particles::Particles(const SimulationConfig& config)
       position(config.maxParticleCount, Vec2<float>(0, 0)),
       velocity(config.maxParticleCount, Vec2<float>(0, 0)),
       isActive(config.maxParticleCount, false),
-      vertices(sf::Triangles, config.maxParticleCount * 6),
+      vertices(sf::Quads, config.maxParticleCount * 4),
       renderingThreads(thread::hardware_concurrency() / 2),
       chunkSize(config.maxParticleCount / renderingThreads) {
     currIndex = 0;
@@ -75,6 +75,15 @@ Particles::Particles(const SimulationConfig& config)
     spawn = FALSE;
     succ = FALSE;
     repel = FALSE;
+
+    if (texture.loadFromFile("assets/circle.png")) {
+        cout << "Texture loaded successfully" << endl;
+    } else {
+        cerr << "Failed to load texture, abort" << endl;
+        exit(-1);
+    }
+    texture.setSmooth(true);
+    texture.generateMipmap();
 
     spawnCount = config.spawnCount;
 
@@ -172,6 +181,7 @@ void Particles::repelParticles(unsigned int xPos, unsigned int yPos, BOOL should
 }
 
 void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTime) {
+    const float textureSize = 1024.0f;
     for (size_t i = startIndex; i < endIndex; i++) {
         if (!isActive[i]) continue;
 
@@ -179,17 +189,20 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
         float x = position[i].x - radius + velocity[i].x * deltaTime;
         float y = position[i].y - radius + velocity[i].y * deltaTime;
 
-        vertices[i * 6 + 0].position = sf::Vector2f(x - radius, y - radius);
-        vertices[i * 6 + 1].position = sf::Vector2f(x + radius, y - radius);
-        vertices[i * 6 + 2].position = sf::Vector2f(x + radius, y + radius);
+        vertices[i * 4 + 0].position = sf::Vector2f(x - radius, y - radius);
+        vertices[i * 4 + 1].position = sf::Vector2f(x + radius, y - radius);
+        vertices[i * 4 + 2].position = sf::Vector2f(x + radius, y + radius);
+        vertices[i * 4 + 3].position = sf::Vector2f(x - radius, y + radius);
 
-        vertices[i * 6 + 3].position = sf::Vector2f(x - radius, y - radius);
-        vertices[i * 6 + 4].position = sf::Vector2f(x + radius, y + radius);
-        vertices[i * 6 + 5].position = sf::Vector2f(x - radius, y + radius);
+        vertices[i * 4 + 0].texCoords = sf::Vector2f(0.0f, 0.0f);
+        vertices[i * 4 + 1].texCoords = sf::Vector2f(textureSize, 0.0f);
+        vertices[i * 4 + 2].texCoords = sf::Vector2f(textureSize, textureSize);
+        vertices[i * 4 + 3].texCoords = sf::Vector2f(0.0f, textureSize);
 
-        for (size_t j = 0; j < 6; j++) {
-            vertices[i * 6 + j].color = sf::Color(r[i], g[i], b[i]);
-        }
+        vertices[i * 4 + 0].color = sf::Color(r[i], g[i], b[i]);
+        vertices[i * 4 + 1].color = sf::Color(r[i], g[i], b[i]);
+        vertices[i * 4 + 2].color = sf::Color(r[i], g[i], b[i]);
+        vertices[i * 4 + 3].color = sf::Color(r[i], g[i], b[i]);
     }
 }
 
@@ -210,7 +223,7 @@ void Particles::render(sf::RenderWindow &window, float deltaTime) {
         thread.join();
     }
 
-    window.draw(vertices);
+    window.draw(vertices, &texture);
 }
 
 void Particles::swapDeviceParticles() {

@@ -46,6 +46,7 @@ class Particles {
     // rendering stuff
     vector<uint8_t> r, g, b;
     sf::VertexArray vertices;
+    sf::Texture texture;
     const size_t renderingThreads, chunkSize;
 
     // Cuda stuff, pointers to the device memory for particles
