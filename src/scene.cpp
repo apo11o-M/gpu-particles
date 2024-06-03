@@ -68,7 +68,7 @@ void SceneManager::run() {
         fps.update();
         fpsText.setString("FPS: " + std::to_string(fps.getFPS()) 
             + "\nFrame Time: " + std::to_string(elapsed.count()) + " s"
-            + "\nParticles: " + std::to_string(scene->particles->currIndex));
+            + "\nParticles: " + std::to_string(scene->particles->currActiveIndex));
         window.draw(fpsText);
 
         window.display();

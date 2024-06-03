@@ -20,7 +20,6 @@
 // the update function
 class Particles {
    public:
-    unsigned int currIndex;
     unsigned int maxParticleCount;
 
     // the border of the scene, should be <= to the windows size
@@ -39,7 +38,8 @@ class Particles {
     vector<Vec2<float>> velocity, position;
     float radius, mass;
     float dampingFactor, dampingFactorRate, restitution;
-    vector<BOOL> isActive;
+    // All particles from index 0 to currActiveIndex are active
+    int currActiveIndex;
     float maxSuctionRange, suctionForce;
     float maxRepelRange, repelForce;
 
@@ -52,7 +52,6 @@ class Particles {
     // Cuda stuff, pointers to the device memory for particles
     Vec2<float> *d_positionIn, *d_velocityIn;
     Vec2<float> *d_positionOut, *d_velocityOut;
-    BOOL *d_isActive;
 
     // see https://www.youtube.com/watch?v=D2M8jTtKi44 at 6:05, amazing stuff
     int *d_spatialHashTable, *d_particleIndices;

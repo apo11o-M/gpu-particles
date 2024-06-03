@@ -34,18 +34,16 @@ Particles::Particles(const SimulationConfig& config)
       b(config.maxParticleCount, 255),
       position(config.maxParticleCount, Vec2<float>(0, 0)),
       velocity(config.maxParticleCount, Vec2<float>(0, 0)),
-      isActive(config.maxParticleCount, false),
       vertices(sf::Quads, config.maxParticleCount * 4),
       renderingThreads(thread::hardware_concurrency() / 2),
       chunkSize(config.maxParticleCount / renderingThreads) {
-    currIndex = 0;
-
     this->maxParticleCount = config.maxParticleCount;
     radius = config.particleRadius;
     mass = config.particleMass;
     restitution = config.restitutionCoefficient;
     dampingFactor = config.velocityDampingFactor;
     dampingFactorRate = config.velocityDampingFactorRate;
+    currActiveIndex = -1;
     maxSuctionRange = config.maxSuctionRange;
     suctionForce = config.suctionForce;
     maxRepelRange = config.maxRepelRange;
@@ -118,9 +116,6 @@ Particles::Particles(const SimulationConfig& config)
     cudaAssert(cudaMemcpy(d_positionOut, position.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
     cudaAssert(cudaMemcpy(d_velocityOut, velocity.data(), maxParticleCount * sizeof(Vec2<float>), cudaMemcpyHostToDevice));
 
-    cudaAssert(cudaMalloc(&d_isActive, maxParticleCount * sizeof(BOOL)));
-    cudaAssert(cudaMemcpy(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice));
-
     // from Matthias Müller, Ten Minute Physics, having the table size be twice 
     // the size of the particle count is a good rule of thumb most of the time
     cudaAssert(cudaMalloc(&d_spatialHashTable, (maxParticleCount * 2 + 1) * sizeof(int)));
@@ -143,7 +138,6 @@ Particles::Particles(const SimulationConfig& config)
 Particles::~Particles() {
     cudaAssert(cudaFree(d_positionIn));
     cudaAssert(cudaFree(d_velocityIn));
-    cudaAssert(cudaFree(d_isActive));
     cudaAssert(cudaFree(d_positionOut));
     cudaAssert(cudaFree(d_velocityOut));
     cudaAssert(cudaFree(d_spatialHashTable));
@@ -183,7 +177,7 @@ void Particles::repelParticles(unsigned int xPos, unsigned int yPos, BOOL should
 void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTime) {
     const float textureSize = 1024.0f;
     for (size_t i = startIndex; i < endIndex; i++) {
-        if (!isActive[i]) continue;
+        if (i > currActiveIndex) return;
 
         // interpolating the position to achieve smoother movement
         float x = position[i].x - radius + velocity[i].x * deltaTime;
@@ -208,7 +202,7 @@ void Particles::updateVertices(size_t startIndex, size_t endIndex, float deltaTi
 
 void Particles::render(sf::RenderWindow &window, float deltaTime) {
     // we only create as many threads as needed to render the particles
-    const size_t threadCount = min(renderingThreads, currIndex / chunkSize + 1);
+    const size_t threadCount = min(renderingThreads, currActiveIndex / chunkSize + 1);
     // const size_t threadCount = 1;
 
     vector<thread> threads;
@@ -236,7 +230,7 @@ void Particles::swapDeviceParticles() {
 }
 
 __global__ void spawnParticleKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
-                                    Vec2<float> pos, unsigned int currIndex) {
+                                    Vec2<float> pos, int currIndex) {
     // give each spawned particles some offset to avoid overlapping, not perfect
     // but it's good enough tbh
     posIn[currIndex + threadIdx.x].x = pos.x + threadIdx.x;
@@ -257,9 +251,9 @@ __device__ float lerp(const float n1, const float n2, const float time) {
 
 // Succ the particles to where the mouse is clicked
 __global__ void succParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn, 
-                                    const BOOL *d_isActive, const Vec2<float> mousePos) {
+                                    const int currActiveIndex, const Vec2<float> mousePos) {
     int i = blockIdx.x;
-    if (!d_isActive[i]) return;
+    if (i > currActiveIndex) return;
 
     // don't succ the particle if it's too far away
     Vec2<float> delta = mousePos - posIn[i];
@@ -271,9 +265,9 @@ __global__ void succParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 
 // repel the particles from where the mouse is clicked
 __global__ void repelParticlesKernel(Vec2<float> *posIn, Vec2<float> *velIn,
-                                     const BOOL *d_isActive, const Vec2<float> mousePos) {
+                                     const int currActiveIndex, const Vec2<float> mousePos) {
     int i = blockIdx.x;
-    if (!d_isActive[i]) return;
+    if (i > currActiveIndex) return;
 
     // don't repel the particle if it's too far away
     Vec2<float> delta = mousePos - posIn[i];
@@ -327,8 +321,8 @@ __global__ void createSpatialHashTable(Vec2<float> *pos, int *cellIndices, int *
 // There is a better way to approach this, which would require more complex
 // index mapping but allow more efficient gpu utilization. 
 __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
-                             const BOOL *d_isActive, const int *spatialHashtable,
-                             const int *particleIndices,
+                             const int currActiveIndex, 
+                             const int *spatialHashtable, const int *particleIndices,
                              const float deltaTime, const float gravity,
                              const float cellSize,
                              Vec2<float> *posOut, Vec2<float> *velOut) {
@@ -353,7 +347,7 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
 
     int base = blockIdx.x;
     int i = particleIndices[base];
-    if (!d_isActive[i]) return;
+    if (i > currActiveIndex) return;
     int cellXPos = (int)((posIn[i].x - d_borderLeft) / cellSize);
     int cellYPos = (int)((posIn[i].y - d_borderTop) / cellSize);
 
@@ -371,7 +365,7 @@ __global__ void updateKernel(Vec2<float> *posIn, Vec2<float> *velIn,
                     k < d_maxParticleCount && k < spatialHashtable[hash + 1]; 
                     k += blockDim.x) {
                 int j = particleIndices[k];
-                if (i == j || !d_isActive[j]) continue;
+                if (i == j || j > currActiveIndex) continue;
 
                 // impulse based collision
                 Vec2<float> delta = posIn[i] - posIn[j];
@@ -446,32 +440,31 @@ void Particles::update(float deltaTime, float gravity) {
     dim3 blocks = maxParticleCount;
     dim3 threads = min(maxParticleCount, h_maxThreadCount);
 
-    if (spawn && currIndex < maxParticleCount) {
+    if (spawn && (currActiveIndex == -1 || currActiveIndex < maxParticleCount)) {
+        currActiveIndex = (currActiveIndex == -1) ? 0 : currActiveIndex;
         spawnParticleKernel<<<1, min(spawnCount, maxParticleCount - spawnCount), 0, stream>>>(d_positionIn, d_velocityIn, 
-            Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currIndex);
-        fill(isActive.begin() + currIndex, isActive.begin() + currIndex + spawnCount, TRUE);
-        currIndex += spawnCount;
+            Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currActiveIndex);
+        currActiveIndex += min(spawnCount - 1, maxParticleCount - spawnCount);
     }
-    if (succ) {
-        succParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, d_isActive, 
+    if (succ && currActiveIndex != -1) {
+        succParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, currActiveIndex, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)));
     }
-    if (repel) {
-        repelParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, d_isActive, 
+    if (repel && currActiveIndex != -1) {
+        repelParticlesKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, currActiveIndex, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)));
-    }
-
-    cudaAssert(cudaMemcpyAsync(d_isActive, isActive.data(), maxParticleCount * sizeof(BOOL), cudaMemcpyHostToDevice, stream));
+    }  
 
     createSpatialHashTable<<<1, threads, 0, stream>>>(d_positionIn, d_spatialHashTable, d_particleIndices, cellSize);
     cudaAssert(cudaStreamSynchronize(stream));
 
     // this is the iterative solver loop for the position based dynamics, unused for now
     // for (int iter = 0; iter < 4; iter++) {
-    updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, 
-        d_isActive, d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
+    updateKernel<<<blocks, threads, 0, stream>>>(d_positionIn, d_velocityIn, currActiveIndex,
+        d_spatialHashTable, d_particleIndices, deltaTime, gravity, cellSize, d_positionOut, d_velocityOut);
     cudaAssert(cudaStreamSynchronize(stream));
     // }
+
     cudaAssert(cudaMemcpyAsync(position.data(), d_positionOut, maxParticleCount * sizeof(Vec2<float>), cudaMemcpyDeviceToHost, stream));
     swapDeviceParticles();
 
