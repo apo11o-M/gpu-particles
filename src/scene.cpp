@@ -98,6 +98,15 @@ void Scene::pollEvent(sf::RenderWindow& window) {
             case (sf::Event::KeyPressed):
                 if (event.key.code == sf::Keyboard::Escape) {
                     window.close();
+                } else if (event.key.code == sf::Keyboard::Space) {
+                    // spawn particles
+                    particles->spawnParticles(0, 0, TRUE);
+                }
+                break;
+            case (sf::Event::KeyReleased):
+                if (event.key.code == sf::Keyboard::Space) {
+                    // stop spawning particles
+                    particles->spawnParticles(0, 0, FALSE);
                 }
                 break;
             case (sf::Event::MouseButtonPressed):
@@ -151,7 +160,8 @@ void Scene::update(sf::RenderWindow& window, float deltaTime) {
 }
 
 void Scene::render(sf::RenderWindow& window, float deltaTime) {
-    window.clear(sf::Color::Black);
+    // window.clear(sf::Color::Black);
+    window.clear(sf::Color(19, 23, 33));
     // sf::RectangleShape border(
     //     sf::Vector2f(borderRight - borderLeft, borderBottom - borderTop));
     // border.setPosition(borderLeft, borderTop);

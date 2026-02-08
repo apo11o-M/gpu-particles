@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
     cout << "Program starts.." << endl;
 
     string config = "default-config.json";
+    // string config = "demo.json";
     try {
         for (int i = 0; i < argc; i++) {
             if (string(argv[i]) == "-c") {

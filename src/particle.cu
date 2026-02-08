@@ -215,8 +215,20 @@ __global__ void spawnParticleKernel(Vec2<float> *position, Vec2<float> *velocity
                                     Vec2<float> mousePosition, int currIndex) {
     // give each spawned particles some offset to avoid overlapping, not perfect
     // but it's good enough
+    // if (threadIdx.x != 0) return;
+    
+    // // spawn a grid of particles in one go
+    // for (int i = 0; i < 5; i++) {
+    //     for (int j = 0; j < 5; j++) {
+    //         position[currIndex + i * 5 + j].x = d_borderLeft + 100 + i * d_radius * 2.5 + j * 1;
+    //         position[currIndex + i * 5 + j].y = d_borderTop + 20 + j * d_radius * 2.5;
+    //         velocity[currIndex + i * 5 + j].x = 0;
+    //         velocity[currIndex + i * 5 + j].y = 0;
+    //     }
+    // }
+
     position[currIndex + threadIdx.x].x = d_borderLeft + 100;
-    position[currIndex + threadIdx.x].y = d_borderTop + 100 + threadIdx.x * d_radius * 2;
+    position[currIndex + threadIdx.x].y = d_borderTop + 50 + threadIdx.x * d_radius * 2;
     velocity[currIndex + threadIdx.x].x = 800;
     velocity[currIndex + threadIdx.x].y = 200;
     // position[currIndex + threadIdx.x].x = mousePosition.x + threadIdx.x;
@@ -434,6 +446,7 @@ void Particles::update(float deltaTime, float gravity) {
         spawnParticleKernel<<<1, min(spawnCount, maxParticleCount - spawnCount), 0, stream>>>(d_position, d_velocity, 
             Vec2<float>(static_cast<float>(mouseXPos), static_cast<float>(mouseYPos)), currActiveIndex);
         currActiveIndex += min(spawnCount, maxParticleCount - spawnCount);
+        // currActiveIndex += 25;
     }
     if (succ && currActiveIndex != -1) {
         succParticlesKernel<<<blocks, threads, 0, stream>>>(d_position, d_velocity, currActiveIndex, 

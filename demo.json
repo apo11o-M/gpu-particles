@@ -1,0 +1,30 @@
+{
+  "name": "small container demo",
+
+  "windowWidth": 1600,
+  "windowHeight": 900,
+
+  "borderLeft": 600.0,
+  "borderRight": 1000.0,
+  "borderTop": 300.0,
+  "borderBottom": 700.0,
+  "backgroundColor": "0x192333ff",
+  "maxParticleCount": 25,
+
+  "particleRadius": 20.0,
+  "particleMass": 20.0,
+
+  "velocityDampingFactor": 0.99,
+  "velocityDampingFactorRate": 90.0,
+  "restitutionCoefficient": 0.45,
+  "gravity": 90.0,
+
+  "maxSuctionRange": 100.0,
+  "suctionForce": 20.0,
+  "maxRepelRange": 50.0,
+  "repelForce": 500.0,
+
+  "spawnSize": 10.0,
+  "spawnRate": 10.0,
+  "spawnCount": 1
+}
