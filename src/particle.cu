@@ -76,7 +76,7 @@ Particles::Particles(const SimulationConfig& config)
     succ = FALSE;
     repel = FALSE;
 
-    if (texture.loadFromFile("assets/circle.png")) {
+    if (texture.loadFromFile("../assets/circle.png")) {
         cout << "Texture loaded successfully" << endl;
     } else {
         cerr << "Failed to load texture, abort" << endl;

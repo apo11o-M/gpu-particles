@@ -21,7 +21,7 @@ SceneManager::SceneManager(string configFilename) : clock() {
 
     fps = FPS();
     try {
-        if (!font.loadFromFile("assets/arial.ttf")) {
+        if (!font.loadFromFile("../assets/arial.ttf")) {
             throw std::runtime_error("Could not load font");
         }
         fpsText = sf::Text("", font, 16);

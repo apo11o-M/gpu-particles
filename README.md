@@ -4,30 +4,22 @@ Simulate particle collisions with C++ and NVIDIA GPUs!
 
 ## Getting Started
 
-1. Install vcpkg if it's not already installed
+1. Clone the report with the `--recursive` flag to also clone the submodules
 
 ```bash
-git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-./bootstrap-vcpkg.sh # for linux and macos
-.\bootstrap-vcpkg.bat # for windows
+git clone --recursive https://github.com/apo11o-M/gpu-particles.git
 ```
 
-2. Navigate to the root directory of this project and install the dependencies with vcpkg
+2. Build the project with cmake
 
 ```bash
-./vcpkg install # for linux and macos
-.\vcpkg.exe install # for windows
+mkdir build
+cd build
+cmake --build . --config Release
 ```
 
-3. Configure the project with cmake by pointing cmake to the vcpkg toolchain file
+3. Run the executable
 
 ```bash
-cmake -B build -S . "-DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake"
-```
-
-4. Build the project, the executable will be located in the `build` directory
-
-```bash
-cmake --build build --config Release
+./build/Release/gpu-particles -c ../default-config.json
 ```
